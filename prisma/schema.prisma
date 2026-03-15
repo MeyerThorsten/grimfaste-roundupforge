@@ -1,0 +1,71 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model ScrapeProfile {
+  id             Int       @id @default(autoincrement())
+  name           String
+  domain         String
+  titleSelector  String
+  imageSelector  String
+  textSelectors  String    // JSON array of {label, selector, treatAsReview}
+  affiliateCode  String    @default("")
+  treatAsReview  Boolean   @default(false)
+  enabled        Boolean   @default(true)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  projects       Project[]
+}
+
+model Project {
+  id                 Int             @id @default(autoincrement())
+  name               String
+  status             String          @default("pending")
+  profileId          Int
+  profile            ScrapeProfile   @relation(fields: [profileId], references: [id])
+  productsPerKeyword Int             @default(5)
+  totalKeywords      Int             @default(0)
+  completedKeywords  Int             @default(0)
+  failedKeywords     Int             @default(0)
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
+  keywords           KeywordResult[]
+}
+
+model KeywordResult {
+  id           Int       @id @default(autoincrement())
+  projectId    Int
+  project      Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  keyword      String
+  searchUrl    String    @default("")
+  status       String    @default("pending")
+  errorMessage String?
+  createdAt    DateTime  @default(now())
+  products     Product[]
+}
+
+model Product {
+  id                 Int           @id @default(autoincrement())
+  keywordResultId    Int
+  keywordResult      KeywordResult @relation(fields: [keywordResultId], references: [id], onDelete: Cascade)
+  title              String        @default("")
+  asin               String        @default("")
+  productUrl         String        @default("")
+  affiliateUrl       String        @default("")
+  imageUrl           String        @default("")
+  featureBullets     String        @default("")
+  productDescription String        @default("")
+  productFacts       String        @default("")
+  techDetails        String        @default("")
+  reviews            String        @default("")
+  mergedText         String        @default("")
+  scrapeDebug        String        @default("{}")
+  position           Int           @default(0)
+  excluded           Boolean       @default(false)
+  createdAt          DateTime      @default(now())
+}
