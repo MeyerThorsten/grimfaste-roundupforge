@@ -3,46 +3,61 @@ import { ScrapeOwlAdapter } from './scrapeowl.adapter';
 import { ScraperApiAdapter } from './scraperapi.adapter';
 import { ScrapingBeeAdapter } from './scrapingbee.adapter';
 import { ZenRowsAdapter } from './zenrows.adapter';
+import { DataForSeoAdapter } from './dataforseo.adapter';
 import { PoolAdapter } from './pool.adapter';
 import { logger } from '@/lib/utils/logger';
 
 let instance: ScraperAdapter | null = null;
 
+function isEnabled(enabledVar: string): boolean {
+  const val = process.env[enabledVar];
+  if (val === undefined) return true; // default enabled if not set
+  return val === 'true' || val === '1';
+}
+
 export function getScraper(): ScraperAdapter {
   if (instance) return instance;
 
-  // Primary adapter — the one with the paid subscription
   let primary: ScraperAdapter | null = null;
   const fallbacks: ScraperAdapter[] = [];
 
-  // ScrapeOwl is always primary when configured (paid subscription)
-  if (process.env.SCRAPEOWL_API_KEY) {
+  // ScrapeOwl — always primary when configured and enabled
+  if (process.env.SCRAPEOWL_API_KEY && isEnabled('SCRAPEOWL_ENABLED')) {
     primary = new ScrapeOwlAdapter(process.env.SCRAPEOWL_API_KEY);
   }
 
-  // Others are fallbacks (free tiers — only used when primary fails)
-  if (process.env.SCRAPERAPI_API_KEY) {
+  // ScraperAPI
+  if (process.env.SCRAPERAPI_API_KEY && isEnabled('SCRAPERAPI_ENABLED')) {
     const adapter = new ScraperApiAdapter(process.env.SCRAPERAPI_API_KEY);
     if (!primary) primary = adapter;
     else fallbacks.push(adapter);
   }
 
-  if (process.env.SCRAPINGBEE_API_KEY) {
+  // ScrapingBee
+  if (process.env.SCRAPINGBEE_API_KEY && isEnabled('SCRAPINGBEE_ENABLED')) {
     const adapter = new ScrapingBeeAdapter(process.env.SCRAPINGBEE_API_KEY);
     if (!primary) primary = adapter;
     else fallbacks.push(adapter);
   }
 
-  if (process.env.ZENROWS_API_KEY) {
+  // ZenRows
+  if (process.env.ZENROWS_API_KEY && isEnabled('ZENROWS_ENABLED')) {
     const adapter = new ZenRowsAdapter(process.env.ZENROWS_API_KEY);
+    if (!primary) primary = adapter;
+    else fallbacks.push(adapter);
+  }
+
+  // DataForSEO
+  if (process.env.DATAFORSEO_API_LOGIN && process.env.DATAFORSEO_API_PASSWORD && isEnabled('DATAFORSEO_ENABLED')) {
+    const adapter = new DataForSeoAdapter(process.env.DATAFORSEO_API_LOGIN, process.env.DATAFORSEO_API_PASSWORD);
     if (!primary) primary = adapter;
     else fallbacks.push(adapter);
   }
 
   if (!primary) {
     throw new Error(
-      'No scraper API keys configured. Set at least one of: ' +
-      'SCRAPEOWL_API_KEY, SCRAPERAPI_API_KEY, SCRAPINGBEE_API_KEY, ZENROWS_API_KEY'
+      'No scraper API keys configured or all scrapers are disabled. ' +
+      'Go to Settings to configure at least one scraper.'
     );
   }
 

@@ -40,6 +40,7 @@ export async function POST(request: Request) {
   const project = await createProject(name, body.profileId, productsPerKeyword, keywords, {
     concurrency,
     randomProducts: body.randomProducts ?? false,
+    randomMin: Math.min(body.randomMin || 5, productsPerKeyword),
     scrapeMode: body.scrapeMode === 'fast' ? 'fast' : 'full',
   });
   return NextResponse.json(project, { status: 201 });

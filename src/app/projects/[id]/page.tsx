@@ -18,10 +18,14 @@ export default function ProjectResultsPage() {
   const [expandedKeyword, setExpandedKeyword] = useState<number | null>(null);
   const [expandedProduct, setExpandedProduct] = useState<number | null>(null);
   const [error, setError] = useState("");
+  const [runStartTime, setRunStartTime] = useState<number | null>(null);
+  const [liveElapsed, setLiveElapsed] = useState(0);
   const [sheetsConfig, setSheetsConfig] = useState<SheetsConfig | null>(null);
   const [sheetsSaving, setSheetsSaving] = useState(false);
   const [sheetsResult, setSheetsResult] = useState<string | null>(null);
   const [roundupPacks, setRoundupPacks] = useState<{ pack: number; totalPacks: number; filename: string; content: string }[] | null>(null);
+  const [editingName, setEditingName] = useState(false);
+  const [nameValue, setNameValue] = useState("");
 
   useEffect(() => {
     fetch("/api/sheets/config")
@@ -52,6 +56,36 @@ export default function ProjectResultsPage() {
     const interval = setInterval(loadData, 3000);
     return () => clearInterval(interval);
   }, [project?.status, loadData]);
+
+  // Track when running starts for live timer
+  useEffect(() => {
+    if (project?.status === "running" && !runStartTime) {
+      setRunStartTime(Date.now());
+    }
+    if (project && project.status !== "running" && project.status !== "pending") {
+      setRunStartTime(null);
+    }
+  }, [project?.status]);
+
+  // Live timer tick
+  useEffect(() => {
+    if (!runStartTime) return;
+    const interval = setInterval(() => {
+      setLiveElapsed(Date.now() - runStartTime);
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [runStartTime]);
+
+  async function handleRename() {
+    if (!nameValue.trim()) return;
+    await fetch(`/api/projects/${projectId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: nameValue.trim() }),
+    });
+    setEditingName(false);
+    loadData();
+  }
 
   async function handleStop() {
     await fetch(`/api/projects/${projectId}/stop`, { method: "POST" });
@@ -143,6 +177,18 @@ export default function ProjectResultsPage() {
     loadData();
   }
 
+  function formatDuration(ms: number): string {
+    const totalSeconds = Math.floor(ms / 1000);
+    const hours = Math.floor(totalSeconds / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    const seconds = totalSeconds % 60;
+    if (hours > 0) return `${hours}h ${minutes}m ${seconds}s`;
+    if (minutes > 0) return `${minutes}m ${seconds}s`;
+    return `${seconds}s`;
+  }
+
+  const totalElapsed = (project?.elapsedMs || 0) + (runStartTime ? liveElapsed : 0);
+
   if (error) return <p className="text-red-600">{error}</p>;
   if (!project) return <p className="text-gray-500">Loading...</p>;
 
@@ -157,7 +203,47 @@ export default function ProjectResultsPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">{project.name}</h1>
+          {editingName ? (
+            <div className="flex items-center gap-2">
+              <input
+                type="text"
+                value={nameValue}
+                onChange={(e) => setNameValue(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") handleRename();
+                  if (e.key === "Escape") setEditingName(false);
+                }}
+                className="text-2xl font-bold text-gray-900 border border-gray-300 rounded-md px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                autoFocus
+              />
+              <button
+                onClick={handleRename}
+                className="text-sm text-blue-600 hover:underline"
+              >
+                Save
+              </button>
+              <button
+                onClick={() => setEditingName(false)}
+                className="text-sm text-gray-500 hover:underline"
+              >
+                Cancel
+              </button>
+            </div>
+          ) : (
+            <h1
+              className="text-2xl font-bold text-gray-900 cursor-pointer hover:text-blue-600 group"
+              onClick={() => {
+                setNameValue(project.name);
+                setEditingName(true);
+              }}
+              title="Click to rename"
+            >
+              {project.name}
+              <span className="text-gray-300 text-sm ml-2 opacity-0 group-hover:opacity-100">
+                edit
+              </span>
+            </h1>
+          )}
           <p className="text-gray-600 text-sm mt-1">
             {project.completedKeywords} completed, {project.failedKeywords} failed of{" "}
             {project.totalKeywords} keywords
@@ -166,6 +252,13 @@ export default function ProjectResultsPage() {
                 (concurrency: {(project as any).concurrency || "?"})
               </span>
             )}
+          </p>
+          <p className="text-gray-400 text-xs mt-0.5 font-mono">
+            {project.status === "running" ? (
+              <>Time: {formatDuration(totalElapsed)}</>
+            ) : totalElapsed > 0 ? (
+              <>Completed in {formatDuration(totalElapsed)}</>
+            ) : null}
           </p>
         </div>
         <div className="flex items-center gap-3">

@@ -35,11 +35,13 @@ export interface ProjectData {
   profileId: number;
   productsPerKeyword: number;
   randomProducts: boolean;
+  randomMin: number;
   scrapeMode: ScrapeMode;
   concurrency: number;
   totalKeywords: number;
   completedKeywords: number;
   failedKeywords: number;
+  elapsedMs: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -115,6 +117,7 @@ export interface CreateProjectPayload {
   profileId: number;
   productsPerKeyword: number;
   randomProducts?: boolean;
+  randomMin?: number;
   scrapeMode?: ScrapeMode;
   concurrency?: number;
   name?: string;

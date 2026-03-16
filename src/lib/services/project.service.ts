@@ -8,11 +8,13 @@ function toProjectData(row: {
   profileId: number;
   productsPerKeyword: number;
   randomProducts: boolean;
+  randomMin: number;
   scrapeMode: string;
   concurrency: number;
   totalKeywords: number;
   completedKeywords: number;
   failedKeywords: number;
+  elapsedMs: number;
   createdAt: Date;
   updatedAt: Date;
 }): ProjectData {
@@ -23,11 +25,13 @@ function toProjectData(row: {
     profileId: row.profileId,
     productsPerKeyword: row.productsPerKeyword,
     randomProducts: row.randomProducts,
+    randomMin: row.randomMin,
     scrapeMode: row.scrapeMode as ProjectData['scrapeMode'],
     concurrency: row.concurrency,
     totalKeywords: row.totalKeywords,
     completedKeywords: row.completedKeywords,
     failedKeywords: row.failedKeywords,
+    elapsedMs: row.elapsedMs || 0,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
   };
@@ -132,7 +136,7 @@ export async function createProject(
   profileId: number,
   productsPerKeyword: number,
   keywords: string[],
-  options: { concurrency?: number; randomProducts?: boolean; scrapeMode?: string } = {}
+  options: { concurrency?: number; randomProducts?: boolean; randomMin?: number; scrapeMode?: string } = {}
 ): Promise<ProjectData> {
   const row = await prisma.project.create({
     data: {
@@ -140,6 +144,7 @@ export async function createProject(
       profileId,
       productsPerKeyword,
       randomProducts: options.randomProducts ?? false,
+      randomMin: options.randomMin ?? 5,
       scrapeMode: options.scrapeMode ?? 'full',
       concurrency: options.concurrency ?? 20,
       totalKeywords: keywords.length,

@@ -48,10 +48,17 @@ export interface SheetKeywordsResult {
  */
 export async function readKeywords(
   spreadsheetId: string,
-  tabName = 'Keywords'
+  tabName = ''
 ): Promise<SheetKeywordsResult> {
   const sheets = getSheetsClient();
-  const range = `${tabName}!A:A`;
+
+  // If no tab specified, use the first tab in the spreadsheet
+  if (!tabName) {
+    const tabs = await listTabs(spreadsheetId);
+    tabName = tabs[0] || 'Sheet1';
+  }
+
+  const range = `'${tabName}'!A:A`;
 
   logger.info('Reading keywords from Google Sheet', { spreadsheetId, range });
 
@@ -297,6 +304,17 @@ export async function listTabs(spreadsheetId: string): Promise<string[]> {
 
 export function isConfigured(): boolean {
   return Boolean(process.env.GOOGLE_SERVICE_ACCOUNT_JSON);
+}
+
+// ── Get spreadsheet title ───────────────────────────────────────
+
+export async function getSpreadsheetName(spreadsheetId: string): Promise<string> {
+  const sheets = getSheetsClient();
+  const spreadsheet = await sheets.spreadsheets.get({
+    spreadsheetId,
+    fields: 'properties.title',
+  });
+  return spreadsheet.data.properties?.title || '';
 }
 
 // ── Helper ──────────────────────────────────────────────────────

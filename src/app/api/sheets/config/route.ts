@@ -1,9 +1,22 @@
 import { NextResponse } from 'next/server';
-import { isConfigured } from '@/lib/sheets/google-sheets';
+import { isConfigured, getSpreadsheetName } from '@/lib/sheets/google-sheets';
 
 export async function GET() {
+  const configured = isConfigured();
+  const spreadsheetId = process.env.GOOGLE_SHEET_ID || '';
+
+  let sheetName = '';
+  if (configured && spreadsheetId) {
+    try {
+      sheetName = await getSpreadsheetName(spreadsheetId);
+    } catch {
+      // Ignore — sheet may not be shared yet
+    }
+  }
+
   return NextResponse.json({
-    configured: isConfigured(),
-    defaultSpreadsheetId: process.env.GOOGLE_SHEET_ID || '',
+    configured,
+    defaultSpreadsheetId: spreadsheetId,
+    sheetName,
   });
 }

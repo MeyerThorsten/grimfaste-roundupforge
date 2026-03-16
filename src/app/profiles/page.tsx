@@ -20,7 +20,6 @@ interface FormState {
   imageSelector: string;
   textSelectorsRaw: string;
   affiliateCode: string;
-  treatAsReview: boolean;
   enabled: boolean;
 }
 
@@ -52,7 +51,6 @@ const EMPTY_FORM: FormState = {
   imageSelector: "#imgTagWrapperId img",
   textSelectorsRaw: selectorsToText(DEFAULT_SELECTORS),
   affiliateCode: "",
-  treatAsReview: false,
   enabled: true,
 };
 
@@ -80,7 +78,6 @@ export default function ProfilesPage() {
       imageSelector: profile.imageSelector,
       textSelectorsRaw: selectorsToText(profile.textSelectors),
       affiliateCode: profile.affiliateCode,
-      treatAsReview: profile.treatAsReview,
       enabled: profile.enabled,
     });
     setError("");
@@ -106,7 +103,7 @@ export default function ProfilesPage() {
       imageSelector: form.imageSelector,
       textSelectors: textToSelectors(form.textSelectorsRaw),
       affiliateCode: form.affiliateCode,
-      treatAsReview: form.treatAsReview,
+      treatAsReview: false,
       enabled: form.enabled,
     };
 
@@ -141,7 +138,36 @@ export default function ProfilesPage() {
 
   return (
     <div className="space-y-8">
-      <h1 className="text-2xl font-bold text-gray-900">Scrape Profiles</h1>
+      <div>
+        <h1 className="text-2xl font-bold text-gray-900">Scrape Profiles</h1>
+        <p className="text-gray-600 mt-1">
+          Configure how product data is extracted from Amazon.
+        </p>
+      </div>
+
+      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-sm text-blue-900 space-y-2">
+        <h3 className="font-medium">Which fields are used in each mode?</h3>
+        <div className="grid grid-cols-2 gap-x-8 gap-y-1 text-xs">
+          <div className="font-medium text-blue-700 col-span-2 mt-1 border-b border-blue-200 pb-1">
+            Always used (both modes)
+          </div>
+          <div><span className="font-medium">Name</span> — shown in profile dropdown</div>
+          <div><span className="font-medium">Domain</span> — builds search URL (e.g. amazon.com/s?k=...)</div>
+          <div><span className="font-medium">Affiliate Code</span> — appended as ?tag= to product URLs</div>
+          <div><span className="font-medium">Enabled</span> — only active profiles appear in dropdown</div>
+
+          <div className="font-medium text-blue-700 col-span-2 mt-2 border-b border-blue-200 pb-1">
+            Full mode only (visits each product page)
+          </div>
+          <div><span className="font-medium">Title Selector</span> — extracts title from product page</div>
+          <div><span className="font-medium">Image Selector</span> — extracts main image from product page</div>
+          <div className="col-span-2"><span className="font-medium">Text Selectors</span> — extracts bullets, description, reviews, specs (mark individual selectors with &quot;review&quot; flag)</div>
+
+          <div className="col-span-2 mt-2 text-blue-600">
+            Fast mode skips product pages entirely — it only uses Domain and Affiliate Code to collect ASINs from search results.
+          </div>
+        </div>
+      </div>
 
       <div className="bg-white rounded-lg border border-gray-200 p-6 space-y-4">
         <h2 className="font-semibold text-gray-900">
@@ -195,7 +221,7 @@ export default function ProfilesPage() {
               placeholder="your-tag-20"
             />
           </div>
-          <div className="flex items-end gap-4">
+          <div className="flex items-end">
             <label className="flex items-center gap-2 text-sm">
               <input
                 type="checkbox"
@@ -203,14 +229,6 @@ export default function ProfilesPage() {
                 onChange={(e) => setForm({ ...form, enabled: e.target.checked })}
               />
               Enabled
-            </label>
-            <label className="flex items-center gap-2 text-sm">
-              <input
-                type="checkbox"
-                checked={form.treatAsReview}
-                onChange={(e) => setForm({ ...form, treatAsReview: e.target.checked })}
-              />
-              Treat all as review
             </label>
           </div>
         </div>

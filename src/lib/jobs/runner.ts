@@ -39,6 +39,7 @@ export async function runProject(projectId: number, retryOnly = false, sheetsSpr
     await resetFailedKeywords(projectId);
   }
 
+  const runStartTime = Date.now();
   await updateProjectStatus(projectId, 'running');
   logger.info('Project started', { projectId, retryOnly });
 
@@ -58,9 +59,10 @@ export async function runProject(projectId: number, retryOnly = false, sheetsSpr
   const tasks = keywords.map((kw) =>
     limiter(async () => {
       if (isCancelled(projectId)) return;
-      // Determine product count: random between 5 and max, or fixed
+      // Determine product count: random between min and max, or fixed
+      const rMin = project.randomMin || 5;
       const maxProducts = project.randomProducts
-        ? Math.floor(Math.random() * (project.productsPerKeyword - 5 + 1)) + 5
+        ? Math.floor(Math.random() * (project.productsPerKeyword - rMin + 1)) + rMin
         : project.productsPerKeyword;
       await processKeyword(kw.id, kw.keyword, profile, maxProducts, projectId, scraper, isFastMode);
       await delay(DELAY_MS);
@@ -73,11 +75,14 @@ export async function runProject(projectId: number, retryOnly = false, sheetsSpr
   const wasCancelled = isCancelled(projectId);
   clearCancellation(projectId);
 
+  // Accumulate elapsed time from this run
+  const runElapsed = Date.now() - runStartTime;
+  await addElapsedTime(projectId, runElapsed);
+
   if (wasCancelled) {
-    // Reset any keywords still marked "running" back to "pending"
     const { resetCount } = await resetRunningKeywords(projectId);
     await updateProjectStatus(projectId, 'failed');
-    logger.info('Project stopped by user', { projectId, keywordsReset: resetCount });
+    logger.info('Project stopped by user', { projectId, keywordsReset: resetCount, runElapsed });
     return;
   }
 
@@ -85,7 +90,7 @@ export async function runProject(projectId: number, retryOnly = false, sheetsSpr
   const updated = await getProject(projectId);
   const finalStatus = updated && updated.failedKeywords > 0 ? 'failed' : 'completed';
   await updateProjectStatus(projectId, finalStatus);
-  logger.info('Project finished', { projectId, status: finalStatus });
+  logger.info('Project finished', { projectId, status: finalStatus, runElapsed, totalElapsed: (updated?.elapsedMs || 0) + runElapsed });
 
   // Auto-sync to Google Sheets if configured
   const targetSheet = sheetsSpreadsheetId || process.env.GOOGLE_SHEET_ID;
@@ -101,6 +106,14 @@ export async function runProject(projectId: number, retryOnly = false, sheetsSpr
       logger.error('Failed to auto-sync to Google Sheets', { projectId, error: String(err) });
     }
   }
+}
+
+async function addElapsedTime(projectId: number, ms: number) {
+  const { prisma } = await import('@/lib/prisma');
+  await prisma.project.update({
+    where: { id: projectId },
+    data: { elapsedMs: { increment: ms } },
+  });
 }
 
 async function resetRunningKeywords(projectId: number): Promise<{ resetCount: number }> {

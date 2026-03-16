@@ -11,7 +11,7 @@ export async function GET(request: Request) {
 
   const { searchParams } = new URL(request.url);
   const spreadsheetId = searchParams.get('spreadsheetId') || process.env.GOOGLE_SHEET_ID || '';
-  const tab = searchParams.get('tab') || 'Keywords';
+  const tab = searchParams.get('tab') || '';
 
   if (!spreadsheetId) {
     return NextResponse.json(

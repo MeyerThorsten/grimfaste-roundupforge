@@ -7,6 +7,7 @@ import { ScrapeProfileData, ProjectData } from "@/types";
 interface SheetsConfig {
   configured: boolean;
   defaultSpreadsheetId: string;
+  sheetName: string;
 }
 
 export default function HomePage() {
@@ -14,7 +15,8 @@ export default function HomePage() {
   const [keywords, setKeywords] = useState("");
   const [productsPerKeyword, setProductsPerKeyword] = useState(5);
   const [randomProducts, setRandomProducts] = useState(false);
-  const [scrapeMode, setScrapeMode] = useState<"full" | "fast">("full");
+  const [randomMin, setRandomMin] = useState(5);
+  const [scrapeMode, setScrapeMode] = useState<"full" | "fast">("fast");
   const [concurrency, setConcurrency] = useState(20);
   const [profileId, setProfileId] = useState<number | null>(null);
   const [projectName, setProjectName] = useState("");
@@ -23,10 +25,11 @@ export default function HomePage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
+  const [maxConcurrent, setMaxConcurrent] = useState(25);
+
   // Google Sheets state
   const [sheetsConfig, setSheetsConfig] = useState<SheetsConfig | null>(null);
-  const [spreadsheetId, setSpreadsheetId] = useState("");
-  const [sheetTab, setSheetTab] = useState("Keywords");
+  const [sheetTab, setSheetTab] = useState("");
   const [availableTabs, setAvailableTabs] = useState<string[]>([]);
   const [sheetsLoading, setSheetsLoading] = useState(false);
   const [syncToSheets, setSyncToSheets] = useState(false);
@@ -41,13 +44,37 @@ export default function HomePage() {
     fetch("/api/projects")
       .then((r) => r.json())
       .then(setProjects);
+    fetch("/api/scrapers")
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.maxConcurrent) {
+          setMaxConcurrent(data.maxConcurrent);
+          if (concurrency > data.maxConcurrent) setConcurrency(data.maxConcurrent);
+        }
+      })
+      .catch(() => {});
     fetch("/api/sheets/config")
       .then((r) => r.json())
       .then((config: SheetsConfig) => {
         setSheetsConfig(config);
         if (config.defaultSpreadsheetId) {
-          setSpreadsheetId(config.defaultSpreadsheetId);
           setSyncToSheets(true);
+          // Load available tabs
+          fetch("/api/sheets/keywords", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ spreadsheetId: config.defaultSpreadsheetId }),
+          })
+            .then((r) => r.json())
+            .then((data) => {
+              if (data.tabs) {
+                setAvailableTabs(data.tabs);
+                if (data.tabs.length > 0 && !sheetTab) {
+                  setSheetTab(data.tabs[0]);
+                }
+              }
+            })
+            .catch(() => {});
         }
       })
       .catch(() => {});
@@ -58,35 +85,16 @@ export default function HomePage() {
     .map((l) => l.trim())
     .filter(Boolean).length;
 
-  async function handleLoadTabs() {
-    if (!spreadsheetId) return;
-    setSheetsLoading(true);
-    setError("");
-    try {
-      const res = await fetch("/api/sheets/keywords", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ spreadsheetId }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
-      setAvailableTabs(data.tabs);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load tabs");
-    } finally {
-      setSheetsLoading(false);
-    }
-  }
-
   async function handleLoadKeywords() {
-    if (!spreadsheetId) {
-      setError("Enter a Google Sheet ID");
+    const sid = sheetsConfig?.defaultSpreadsheetId;
+    if (!sid) {
+      setError("No spreadsheet configured. Go to Settings to set one up.");
       return;
     }
     setSheetsLoading(true);
     setError("");
     try {
-      const params = new URLSearchParams({ spreadsheetId, tab: sheetTab });
+      const params = new URLSearchParams({ spreadsheetId: sid, tab: sheetTab || '' });
       const res = await fetch(`/api/sheets/keywords?${params}`);
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
@@ -128,6 +136,7 @@ export default function HomePage() {
           profileId,
           productsPerKeyword,
           randomProducts,
+          randomMin,
           scrapeMode,
           concurrency,
           name: projectName || undefined,
@@ -143,7 +152,7 @@ export default function HomePage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          sheetsSpreadsheetId: syncToSheets && spreadsheetId ? spreadsheetId : undefined,
+          sheetsSpreadsheetId: syncToSheets && sheetsConfig?.defaultSpreadsheetId ? sheetsConfig.defaultSpreadsheetId : undefined,
         }),
       });
 
@@ -158,73 +167,71 @@ export default function HomePage() {
   return (
     <div className="space-y-8">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Amazon Roundup Scout</h1>
+        <h1 className="text-2xl font-bold text-gray-900">RoundupForge</h1>
         <p className="text-gray-600 mt-1">
-          Paste keywords or load them from Google Sheets. Results auto-sync back when configured.
+          Amazon Roundup Scout — Paste keywords or load them from Google Sheets.
+          A free tool by{" "}
+          <a
+            href="https://grimfaste.com"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-teal-600 hover:underline"
+          >
+            Grimfaste
+          </a>.
         </p>
       </div>
 
       {/* Google Sheets Panel */}
-      {sheetsConfig?.configured && (
+      {sheetsConfig?.configured && sheetsConfig.defaultSpreadsheetId && (
         <div className="bg-emerald-50 rounded-lg border border-emerald-200 p-4 space-y-3">
-          <div className="flex items-center gap-2">
-            <svg className="w-5 h-5 text-emerald-600" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V5h14v14zM7 10h2v7H7zm4-3h2v10h-2zm4 6h2v4h-2z"/>
-            </svg>
-            <h3 className="font-medium text-emerald-900 text-sm">Google Sheets Integration</h3>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 items-end">
-            <div>
-              <label className="block text-xs font-medium text-emerald-800 mb-1">
-                Spreadsheet ID
-              </label>
-              <input
-                type="text"
-                value={spreadsheetId}
-                onChange={(e) => setSpreadsheetId(e.target.value)}
-                onBlur={handleLoadTabs}
-                className="w-full border border-emerald-300 rounded-md px-3 py-1.5 text-sm bg-white"
-                placeholder="1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgVE2upms"
-              />
-              <p className="text-[10px] text-emerald-600 mt-0.5">From the Sheet URL after /d/</p>
-            </div>
-
-            <div>
-              <label className="block text-xs font-medium text-emerald-800 mb-1">
-                Keywords Tab
-              </label>
-              <div className="flex gap-1">
-                {availableTabs.length > 0 ? (
-                  <select
-                    value={sheetTab}
-                    onChange={(e) => setSheetTab(e.target.value)}
-                    className="flex-1 border border-emerald-300 rounded-md px-3 py-1.5 text-sm bg-white"
-                  >
-                    {availableTabs.map((tab) => (
-                      <option key={tab} value={tab}>{tab}</option>
-                    ))}
-                  </select>
-                ) : (
-                  <input
-                    type="text"
-                    value={sheetTab}
-                    onChange={(e) => setSheetTab(e.target.value)}
-                    className="flex-1 border border-emerald-300 rounded-md px-3 py-1.5 text-sm bg-white"
-                  />
-                )}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <svg className="w-5 h-5 text-emerald-600" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V5h14v14zM7 10h2v7H7zm4-3h2v10h-2zm4 6h2v4h-2z"/>
+              </svg>
+              <div>
+                <h3 className="font-medium text-emerald-900 text-sm">
+                  {sheetsConfig.sheetName || "Google Sheet"}
+                </h3>
+                <p className="text-[10px] text-emerald-600">Connected via Settings</p>
               </div>
             </div>
+            <a href="/settings" className="text-xs text-emerald-700 hover:underline">Change</a>
+          </div>
 
-            <div className="flex gap-2">
-              <button
-                onClick={handleLoadKeywords}
-                disabled={sheetsLoading || !spreadsheetId}
-                className="bg-emerald-600 text-white px-4 py-1.5 rounded-md text-sm font-medium hover:bg-emerald-700 disabled:opacity-50"
-              >
-                {sheetsLoading ? "Loading..." : "Load Keywords"}
-              </button>
+          <div className="flex items-end gap-3">
+            <div className="flex-1">
+              <label className="block text-xs font-medium text-emerald-800 mb-1">
+                Load keywords from tab
+              </label>
+              {availableTabs.length > 0 ? (
+                <select
+                  value={sheetTab}
+                  onChange={(e) => setSheetTab(e.target.value)}
+                  className="w-full border border-emerald-300 rounded-md px-3 py-1.5 text-sm bg-white"
+                >
+                  {availableTabs.map((tab) => (
+                    <option key={tab} value={tab}>{tab}</option>
+                  ))}
+                </select>
+              ) : (
+                <input
+                  type="text"
+                  value={sheetTab}
+                  onChange={(e) => setSheetTab(e.target.value)}
+                  className="w-full border border-emerald-300 rounded-md px-3 py-1.5 text-sm bg-white"
+                  placeholder="Sheet1"
+                />
+              )}
             </div>
+            <button
+              onClick={handleLoadKeywords}
+              disabled={sheetsLoading}
+              className="bg-emerald-600 text-white px-4 py-1.5 rounded-md text-sm font-medium hover:bg-emerald-700 disabled:opacity-50"
+            >
+              {sheetsLoading ? "Loading..." : "Load Keywords"}
+            </button>
           </div>
 
           <label className="flex items-center gap-2 text-sm text-emerald-800">
@@ -233,14 +240,20 @@ export default function HomePage() {
               checked={syncToSheets}
               onChange={(e) => setSyncToSheets(e.target.checked)}
             />
-            Auto-sync results back to this spreadsheet when batch completes
+            Auto-sync results back when batch completes
           </label>
+        </div>
+      )}
+
+      {sheetsConfig?.configured && !sheetsConfig.defaultSpreadsheetId && (
+        <div className="bg-yellow-50 rounded-lg border border-yellow-200 p-3 text-sm text-yellow-800">
+          Google Sheets connected but no spreadsheet set. <a href="/settings" className="font-medium underline">Go to Settings</a> to configure one.
         </div>
       )}
 
       {!sheetsConfig?.configured && (
         <div className="bg-gray-50 rounded-lg border border-gray-200 p-3 text-sm text-gray-500">
-          Google Sheets integration available. Set <code className="text-xs bg-gray-100 px-1 rounded">GOOGLE_SERVICE_ACCOUNT_JSON</code> in your .env to enable.
+          Google Sheets integration available. <a href="/settings" className="text-blue-600 hover:underline">Go to Settings</a> to set it up.
         </div>
       )}
 
@@ -310,28 +323,46 @@ export default function HomePage() {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 items-end mt-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-start mt-3">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Products/keyword: {productsPerKeyword}
+              Products/keyword: {randomProducts ? `${randomMin}–${productsPerKeyword}` : productsPerKeyword}
             </label>
-            <div className="flex items-center gap-3">
-              <input
-                type="range"
-                min={5}
-                max={15}
-                value={productsPerKeyword}
-                onChange={(e) => setProductsPerKeyword(Number(e.target.value))}
-                className="flex-1"
-              />
-              <label className="flex items-center gap-1.5 text-xs text-gray-600 whitespace-nowrap">
+            <input
+              type="range"
+              min={3}
+              max={15}
+              value={productsPerKeyword}
+              onChange={(e) => {
+                const v = Number(e.target.value);
+                setProductsPerKeyword(v);
+                if (randomMin > v) setRandomMin(v);
+              }}
+              className="w-full"
+            />
+            <div className="flex items-center gap-3 mt-1.5">
+              <label className="flex items-center gap-1.5 text-xs text-gray-600">
                 <input
                   type="checkbox"
                   checked={randomProducts}
                   onChange={(e) => setRandomProducts(e.target.checked)}
                 />
-                Random (5–{productsPerKeyword})
+                Random
               </label>
+              {randomProducts && (
+                <div className="flex items-center gap-1.5 text-xs text-gray-600">
+                  <span>min:</span>
+                  <input
+                    type="number"
+                    min={3}
+                    max={productsPerKeyword}
+                    value={randomMin}
+                    onChange={(e) => setRandomMin(Math.min(Math.max(3, Number(e.target.value)), productsPerKeyword))}
+                    className="w-14 border border-gray-300 rounded px-2 py-0.5 text-center text-xs"
+                  />
+                  <span>max: {productsPerKeyword}</span>
+                </div>
+              )}
             </div>
           </div>
 
@@ -342,21 +373,23 @@ export default function HomePage() {
             <input
               type="range"
               min={1}
-              max={25}
-              value={concurrency}
+              max={maxConcurrent}
+              value={Math.min(concurrency, maxConcurrent)}
               onChange={(e) => setConcurrency(Number(e.target.value))}
               className="w-full"
             />
-            <p className="text-[10px] text-gray-400 mt-0.5">
-              ScrapeOwl slots (lower if ZimmWriter is running)
+            <p className="text-[10px] text-gray-400 mt-1.5">
+              Max {maxConcurrent} (from ScrapeOwl plan). Lower if ZimmWriter is running.
             </p>
           </div>
+        </div>
 
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-end mt-3">
           <div className="text-xs text-gray-500 bg-gray-50 rounded-md p-2">
             <strong>Est. calls:</strong>{" "}
             {scrapeMode === "fast"
               ? `${keywordCount} (1 per keyword)`
-              : `~${keywordCount * (1 + (randomProducts ? Math.round((5 + productsPerKeyword) / 2) : productsPerKeyword))} (1 + ${randomProducts ? `5–${productsPerKeyword}` : productsPerKeyword} per keyword)`}
+              : `~${keywordCount * (1 + (randomProducts ? Math.round((randomMin + productsPerKeyword) / 2) : productsPerKeyword))} (1 + ${randomProducts ? `${randomMin}–${productsPerKeyword}` : productsPerKeyword} per keyword)`}
           </div>
 
           <button
