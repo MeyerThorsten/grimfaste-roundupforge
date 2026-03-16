@@ -59,7 +59,7 @@ Keywords (paste or Google Sheets)
 
 - Node.js 18+
 - npm
-- A [ScrapeOwl](https://scrapeowl.com) API key (free tier: 10,000 credits)
+- A [ScrapeOwl](https://scrapeowl.com) API key (free tier or limited trial)
 
 ### Installation
 
@@ -108,9 +108,9 @@ Open [http://localhost:3000](http://localhost:3000).
 
 RoundupForge uses a primary + fallback architecture. Your paid scraper handles all requests. If it returns a 503 (Amazon block), the request automatically fails over to the next configured provider.
 
-| Provider | Role | Auth | Free Tier |
+| Provider | Role | Auth | Free Tier or Limited Trial |
 |----------|------|------|-----------|
-| [ScrapeOwl](https://scrapeowl.com) | Primary | API key | 10,000 credits |
+| [ScrapeOwl](https://scrapeowl.com) | Primary | API key | Limited trial |
 | [ScraperAPI](https://www.scraperapi.com) | Fallback | API key | 5,000 credits/month |
 | [ScrapingBee](https://www.scrapingbee.com) | Fallback | API key | 1,000 credits |
 | [ZenRows](https://www.zenrows.com) | Fallback | API key | 1,000 credits |
