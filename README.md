@@ -351,3 +351,11 @@ npx prisma studio        # Browse database
 Grimfaste provides real-time traffic analytics, content intelligence, revenue tracking, automated content decay detection, and AI-powered Amazon product box templates across your entire site portfolio.
 
 [Learn more at grimfaste.com](https://grimfaste.com)
+
+---
+
+## License
+
+RoundupForge is licensed under the [GNU Affero General Public License v3.0](LICENSE).
+
+This means you can use, modify, and distribute this software, but any modified version — including use as a network service — must also be released under AGPL v3 with source code available.
