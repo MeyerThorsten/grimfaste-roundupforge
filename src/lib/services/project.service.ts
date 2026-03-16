@@ -7,6 +7,9 @@ function toProjectData(row: {
   status: string;
   profileId: number;
   productsPerKeyword: number;
+  randomProducts: boolean;
+  scrapeMode: string;
+  concurrency: number;
   totalKeywords: number;
   completedKeywords: number;
   failedKeywords: number;
@@ -19,6 +22,9 @@ function toProjectData(row: {
     status: row.status as ProjectData['status'],
     profileId: row.profileId,
     productsPerKeyword: row.productsPerKeyword,
+    randomProducts: row.randomProducts,
+    scrapeMode: row.scrapeMode as ProjectData['scrapeMode'],
+    concurrency: row.concurrency,
     totalKeywords: row.totalKeywords,
     completedKeywords: row.completedKeywords,
     failedKeywords: row.failedKeywords,
@@ -125,13 +131,17 @@ export async function createProject(
   name: string,
   profileId: number,
   productsPerKeyword: number,
-  keywords: string[]
+  keywords: string[],
+  options: { concurrency?: number; randomProducts?: boolean; scrapeMode?: string } = {}
 ): Promise<ProjectData> {
   const row = await prisma.project.create({
     data: {
       name,
       profileId,
       productsPerKeyword,
+      randomProducts: options.randomProducts ?? false,
+      scrapeMode: options.scrapeMode ?? 'full',
+      concurrency: options.concurrency ?? 20,
       totalKeywords: keywords.length,
       keywords: {
         create: keywords.map((keyword) => ({ keyword })),

@@ -15,8 +15,8 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'keywords is required and must be a non-empty array' }, { status: 400 });
   }
 
-  if (body.keywords.length > 100) {
-    return NextResponse.json({ error: 'Maximum 100 keywords allowed' }, { status: 400 });
+  if (body.keywords.length > 10000) {
+    return NextResponse.json({ error: 'Maximum 10,000 keywords allowed' }, { status: 400 });
   }
 
   if (!body.profileId) {
@@ -34,8 +34,13 @@ export async function POST(request: Request) {
   }
 
   const productsPerKeyword = Math.min(15, Math.max(3, body.productsPerKeyword || 5));
+  const concurrency = Math.min(25, Math.max(1, body.concurrency || 20));
   const name = body.name || keywords[0].slice(0, 60);
 
-  const project = await createProject(name, body.profileId, productsPerKeyword, keywords);
+  const project = await createProject(name, body.profileId, productsPerKeyword, keywords, {
+    concurrency,
+    randomProducts: body.randomProducts ?? false,
+    scrapeMode: body.scrapeMode === 'fast' ? 'fast' : 'full',
+  });
   return NextResponse.json(project, { status: 201 });
 }

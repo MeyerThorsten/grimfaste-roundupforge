@@ -14,7 +14,7 @@ export async function extractProduct(
 
   let html: string;
   try {
-    html = await scraper.fetchPage(link.url);
+    html = await scraper.fetchPage(link.url, { renderJs: false });
     debug.htmlLength = html.length;
   } catch (err) {
     logger.error('Failed to fetch product page', { url: link.url, error: String(err) });

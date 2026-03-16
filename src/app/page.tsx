@@ -13,6 +13,9 @@ export default function HomePage() {
   const router = useRouter();
   const [keywords, setKeywords] = useState("");
   const [productsPerKeyword, setProductsPerKeyword] = useState(5);
+  const [randomProducts, setRandomProducts] = useState(false);
+  const [scrapeMode, setScrapeMode] = useState<"full" | "fast">("full");
+  const [concurrency, setConcurrency] = useState(20);
   const [profileId, setProfileId] = useState<number | null>(null);
   const [projectName, setProjectName] = useState("");
   const [profiles, setProfiles] = useState<ScrapeProfileData[]>([]);
@@ -106,8 +109,8 @@ export default function HomePage() {
       setError("Enter at least one keyword");
       return;
     }
-    if (lines.length > 100) {
-      setError("Maximum 100 keywords allowed");
+    if (lines.length > 10000) {
+      setError("Maximum 10,000 keywords allowed");
       return;
     }
     if (!profileId) {
@@ -124,6 +127,9 @@ export default function HomePage() {
           keywords: lines,
           profileId,
           productsPerKeyword,
+          randomProducts,
+          scrapeMode,
+          concurrency,
           name: projectName || undefined,
         }),
       });
@@ -245,7 +251,7 @@ export default function HomePage() {
             <label className="block text-sm font-medium text-gray-700">
               Keywords (one per line)
             </label>
-            <span className="text-xs text-gray-500">{keywordCount}/100</span>
+            <span className="text-xs text-gray-500">{keywordCount} keywords</span>
           </div>
           <textarea
             value={keywords}
@@ -256,7 +262,7 @@ export default function HomePage() {
           />
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 items-end">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 items-end">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
               Project Name (optional)
@@ -267,20 +273,6 @@ export default function HomePage() {
               onChange={(e) => setProjectName(e.target.value)}
               className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm"
               placeholder="Auto-generated from first keyword"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Products per keyword: {productsPerKeyword}
-            </label>
-            <input
-              type="range"
-              min={3}
-              max={15}
-              value={productsPerKeyword}
-              onChange={(e) => setProductsPerKeyword(Number(e.target.value))}
-              className="w-full"
             />
           </div>
 
@@ -301,6 +293,70 @@ export default function HomePage() {
                   </option>
                 ))}
             </select>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Mode
+            </label>
+            <select
+              value={scrapeMode}
+              onChange={(e) => setScrapeMode(e.target.value as "full" | "fast")}
+              className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm"
+            >
+              <option value="fast">Fast — search page only (1 call/keyword)</option>
+              <option value="full">Full — visit each product page (1 + N calls/keyword)</option>
+            </select>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 items-end mt-3">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Products/keyword: {productsPerKeyword}
+            </label>
+            <div className="flex items-center gap-3">
+              <input
+                type="range"
+                min={5}
+                max={15}
+                value={productsPerKeyword}
+                onChange={(e) => setProductsPerKeyword(Number(e.target.value))}
+                className="flex-1"
+              />
+              <label className="flex items-center gap-1.5 text-xs text-gray-600 whitespace-nowrap">
+                <input
+                  type="checkbox"
+                  checked={randomProducts}
+                  onChange={(e) => setRandomProducts(e.target.checked)}
+                />
+                Random (5–{productsPerKeyword})
+              </label>
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Concurrency: {concurrency}
+            </label>
+            <input
+              type="range"
+              min={1}
+              max={25}
+              value={concurrency}
+              onChange={(e) => setConcurrency(Number(e.target.value))}
+              className="w-full"
+            />
+            <p className="text-[10px] text-gray-400 mt-0.5">
+              ScrapeOwl slots (lower if ZimmWriter is running)
+            </p>
+          </div>
+
+          <div className="text-xs text-gray-500 bg-gray-50 rounded-md p-2">
+            <strong>Est. calls:</strong>{" "}
+            {scrapeMode === "fast"
+              ? `${keywordCount} (1 per keyword)`
+              : `~${keywordCount * (1 + (randomProducts ? Math.round((5 + productsPerKeyword) / 2) : productsPerKeyword))} (1 + ${randomProducts ? `5–${productsPerKeyword}` : productsPerKeyword} per keyword)`}
           </div>
 
           <button

@@ -26,12 +26,17 @@ export type ScrapeProfileUpdateInput = Partial<ScrapeProfileCreateInput>;
 // ── Project ─────────────────────────────────────────────────────
 export type ProjectStatus = 'pending' | 'running' | 'completed' | 'failed';
 
+export type ScrapeMode = 'full' | 'fast';
+
 export interface ProjectData {
   id: number;
   name: string;
   status: ProjectStatus;
   profileId: number;
   productsPerKeyword: number;
+  randomProducts: boolean;
+  scrapeMode: ScrapeMode;
+  concurrency: number;
   totalKeywords: number;
   completedKeywords: number;
   failedKeywords: number;
@@ -109,6 +114,9 @@ export interface CreateProjectPayload {
   keywords: string[];
   profileId: number;
   productsPerKeyword: number;
+  randomProducts?: boolean;
+  scrapeMode?: ScrapeMode;
+  concurrency?: number;
   name?: string;
 }
 

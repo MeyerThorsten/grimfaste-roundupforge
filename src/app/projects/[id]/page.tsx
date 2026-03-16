@@ -21,6 +21,7 @@ export default function ProjectResultsPage() {
   const [sheetsConfig, setSheetsConfig] = useState<SheetsConfig | null>(null);
   const [sheetsSaving, setSheetsSaving] = useState(false);
   const [sheetsResult, setSheetsResult] = useState<string | null>(null);
+  const [roundupPacks, setRoundupPacks] = useState<{ pack: number; totalPacks: number; filename: string; content: string }[] | null>(null);
 
   useEffect(() => {
     fetch("/api/sheets/config")
@@ -52,6 +53,12 @@ export default function ProjectResultsPage() {
     return () => clearInterval(interval);
   }, [project?.status, loadData]);
 
+  async function handleStop() {
+    await fetch(`/api/projects/${projectId}/stop`, { method: "POST" });
+    // Poll quickly to pick up the stopped state
+    setTimeout(loadData, 1000);
+  }
+
   async function handleRetry() {
     await fetch(`/api/projects/${projectId}/run`, {
       method: "POST",
@@ -59,6 +66,50 @@ export default function ProjectResultsPage() {
       body: JSON.stringify({ retryOnly: true }),
     });
     loadData();
+  }
+
+  async function handleExportRoundup() {
+    setRoundupPacks(null);
+    try {
+      const res = await fetch(
+        `/api/projects/${projectId}/export?format=roundup&pack=100`
+      );
+      const contentType = res.headers.get("content-type") || "";
+
+      if (contentType.includes("text/plain")) {
+        // Single file — trigger download
+        const blob = await res.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `project-${projectId}-roundup.txt`;
+        a.click();
+        URL.revokeObjectURL(url);
+      } else {
+        // Multiple packs — show download buttons
+        const data = await res.json();
+        setRoundupPacks(data.packs);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Export failed");
+    }
+  }
+
+  function downloadPack(pack: { filename: string; content: string }) {
+    const blob = new Blob([pack.content], { type: "text/plain" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = pack.filename;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  function downloadAllPacks() {
+    if (!roundupPacks) return;
+    for (const pack of roundupPacks) {
+      downloadPack(pack);
+    }
   }
 
   async function handleSaveToSheets() {
@@ -110,10 +161,23 @@ export default function ProjectResultsPage() {
           <p className="text-gray-600 text-sm mt-1">
             {project.completedKeywords} completed, {project.failedKeywords} failed of{" "}
             {project.totalKeywords} keywords
+            {project.status === "running" && (
+              <span className="text-gray-400 ml-2">
+                (concurrency: {(project as any).concurrency || "?"})
+              </span>
+            )}
           </p>
         </div>
         <div className="flex items-center gap-3">
           <StatusBadge status={project.status} />
+          {(project.status === "running" || project.status === "pending") && (
+            <button
+              onClick={handleStop}
+              className="bg-red-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-red-700"
+            >
+              Stop Batch
+            </button>
+          )}
           {project.failedKeywords > 0 && project.status !== "running" && (
             <button
               onClick={handleRetry}
@@ -131,6 +195,12 @@ export default function ProjectResultsPage() {
               {sheetsSaving ? "Saving..." : "Save to Sheets"}
             </button>
           )}
+          <button
+            onClick={handleExportRoundup}
+            className="bg-blue-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-blue-700"
+          >
+            Export Roundup
+          </button>
           <a
             href={`/api/projects/${projectId}/export?format=json`}
             className="bg-gray-100 text-gray-700 px-4 py-2 rounded-md text-sm font-medium hover:bg-gray-200"
@@ -145,6 +215,33 @@ export default function ProjectResultsPage() {
           </a>
         </div>
       </div>
+
+      {roundupPacks && roundupPacks.length > 1 && (
+        <div className="bg-blue-50 border border-blue-200 rounded-md p-4 space-y-3">
+          <div className="flex items-center justify-between">
+            <span className="text-sm font-medium text-blue-900">
+              Roundup export split into {roundupPacks.length} packs (100 keywords each)
+            </span>
+            <button
+              onClick={downloadAllPacks}
+              className="bg-blue-600 text-white px-3 py-1.5 rounded-md text-xs font-medium hover:bg-blue-700"
+            >
+              Download All Packs
+            </button>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {roundupPacks.map((pack) => (
+              <button
+                key={pack.pack}
+                onClick={() => downloadPack(pack)}
+                className="bg-white border border-blue-300 text-blue-700 px-3 py-1.5 rounded-md text-xs font-medium hover:bg-blue-100"
+              >
+                Pack {pack.pack}/{pack.totalPacks}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {sheetsResult && (
         <div className="bg-emerald-50 border border-emerald-200 rounded-md p-3 flex items-center gap-2 text-sm">

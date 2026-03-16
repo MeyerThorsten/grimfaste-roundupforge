@@ -29,6 +29,9 @@ model Project {
   profileId          Int
   profile            ScrapeProfile   @relation(fields: [profileId], references: [id])
   productsPerKeyword Int             @default(5)
+  randomProducts     Boolean         @default(false)
+  scrapeMode         String          @default("full") // "full" or "fast"
+  concurrency        Int             @default(20)
   totalKeywords      Int             @default(0)
   completedKeywords  Int             @default(0)
   failedKeywords     Int             @default(0)
