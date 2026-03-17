@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import Link from "next/link";
+import NavLinks from "./components/nav-links";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -37,17 +38,7 @@ export default function RootLayout({
                   by Grimfaste
                 </span>
               </Link>
-              <div className="flex gap-4 text-sm">
-                <Link href="/" className="text-gray-600 hover:text-gray-900">
-                  Home
-                </Link>
-                <Link href="/profiles" className="text-gray-600 hover:text-gray-900">
-                  Profiles
-                </Link>
-                <Link href="/settings" className="text-gray-600 hover:text-gray-900">
-                  Settings
-                </Link>
-              </div>
+              <NavLinks />
             </div>
             <a
               href="https://grimfaste.com"
