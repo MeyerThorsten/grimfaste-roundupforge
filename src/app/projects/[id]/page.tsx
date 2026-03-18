@@ -52,17 +52,17 @@ export default function ProjectResultsPage() {
 
   // Auto-poll while running
   useEffect(() => {
-    if (!project || (project.status !== "running" && project.status !== "pending")) return;
+    if (!project || (project.status !== "running" && project.status !== "pending" && !project.status.startsWith("retrying"))) return;
     const interval = setInterval(loadData, 3000);
     return () => clearInterval(interval);
   }, [project?.status, loadData]);
 
   // Track when running starts for live timer
   useEffect(() => {
-    if (project?.status === "running" && !runStartTime) {
+    if ((project?.status === "running" || project?.status?.startsWith("retrying")) && !runStartTime) {
       setRunStartTime(Date.now());
     }
-    if (project && project.status !== "running" && project.status !== "pending") {
+    if (project && project.status !== "running" && project.status !== "pending" && !project.status.startsWith("retrying")) {
       setRunStartTime(null);
     }
   }, [project?.status]);
@@ -263,7 +263,7 @@ export default function ProjectResultsPage() {
         </div>
         <div className="flex items-center gap-3">
           <StatusBadge status={project.status} />
-          {(project.status === "running" || project.status === "pending") && (
+          {(project.status === "running" || project.status === "pending" || project.status.startsWith("retrying")) && (
             <button
               onClick={handleStop}
               className="bg-red-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-red-700"
@@ -296,6 +296,7 @@ export default function ProjectResultsPage() {
           </button>
           <a
             href={`/api/projects/${projectId}/export?format=json`}
+            download="Export JSON.json"
             className="bg-gray-100 text-gray-700 px-4 py-2 rounded-md text-sm font-medium hover:bg-gray-200"
           >
             Export JSON
@@ -537,17 +538,19 @@ function Section({ title, content }: { title: string; content: string }) {
 }
 
 function StatusBadge({ status }: { status: string }) {
+  const isRetrying = status.startsWith("retrying");
   const colors: Record<string, string> = {
     pending: "bg-gray-100 text-gray-700",
     running: "bg-blue-100 text-blue-700",
     completed: "bg-green-100 text-green-700",
     failed: "bg-red-100 text-red-700",
   };
+  const colorClass = isRetrying
+    ? "bg-amber-100 text-amber-700"
+    : colors[status] || colors.pending;
   return (
-    <span
-      className={`px-2 py-0.5 rounded-full text-xs font-medium ${colors[status] || colors.pending}`}
-    >
-      {status}
+    <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${colorClass}`}>
+      {isRetrying ? `Retrying (${status.replace("retrying ", "")}) — waiting 30s` : status}
     </span>
   );
 }
