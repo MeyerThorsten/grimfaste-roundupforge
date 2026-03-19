@@ -59,10 +59,40 @@ export default function SettingsPage() {
   const [keyValue2, setKeyValue2] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // LLM Providers state
+  interface LlmProviderData {
+    id: number;
+    name: string;
+    type: string;
+    baseUrl: string;
+    apiKey: string;
+    model: string;
+    purpose: string;
+    isDefault: boolean;
+    enabled: boolean;
+  }
+  const [llmProviders, setLlmProviders] = useState<LlmProviderData[]>([]);
+  const [llmShowForm, setLlmShowForm] = useState(false);
+  const [llmTesting, setLlmTesting] = useState<number | null>(null);
+  const [llmTestResult, setLlmTestResult] = useState<{ id: number; ok: boolean; error?: string } | null>(null);
+
+  // LLM form state
+  const [llmFormName, setLlmFormName] = useState("");
+  const [llmFormType, setLlmFormType] = useState("openai-compatible");
+  const [llmFormBaseUrl, setLlmFormBaseUrl] = useState("");
+  const [llmFormApiKey, setLlmFormApiKey] = useState("");
+  const [llmFormModel, setLlmFormModel] = useState("");
+  const [llmFormPurpose, setLlmFormPurpose] = useState("all");
+  const [llmSaving, setLlmSaving] = useState(false);
+  const [llmFormError, setLlmFormError] = useState("");
+  const [llmAvailableModels, setLlmAvailableModels] = useState<string[]>([]);
+  const [llmLoadingModels, setLlmLoadingModels] = useState(false);
+
   useEffect(() => {
     loadGeneralConfig();
     loadGoogleConfig();
     loadScrapersConfig();
+    loadLlmProviders();
   }, []);
 
   async function loadGeneralConfig() {
@@ -100,6 +130,98 @@ export default function SettingsPage() {
     const res = await fetch("/api/settings/scrapers");
     const data = await res.json();
     setScrapersConfig(data);
+  }
+
+  async function loadLlmProviders() {
+    try {
+      const res = await fetch("/api/settings/llm");
+      if (res.ok) setLlmProviders(await res.json());
+    } catch {
+      // No LLM providers yet
+    }
+  }
+
+  const LLM_PRESETS = [
+    { name: "OpenAI", type: "openai-compatible", baseUrl: "https://api.openai.com/v1", model: "gpt-4o" },
+    { name: "Claude (Anthropic)", type: "anthropic", baseUrl: "https://api.anthropic.com/v1", model: "claude-sonnet-4-20250514" },
+    { name: "OpenRouter", type: "openai-compatible", baseUrl: "https://openrouter.ai/api/v1", model: "meta-llama/llama-3.1-70b-instruct" },
+    { name: "Ollama (Local)", type: "openai-compatible", baseUrl: "http://localhost:11434/v1", model: "llama3.1:8b" },
+    { name: "LM Studio (Local)", type: "openai-compatible", baseUrl: "http://localhost:1234/v1", model: "local-model" },
+  ];
+
+  function applyLlmPreset(idx: number) {
+    const p = LLM_PRESETS[idx];
+    setLlmFormName(p.name);
+    setLlmFormType(p.type);
+    setLlmFormBaseUrl(p.baseUrl);
+    setLlmFormModel(p.model);
+    fetchLlmModels(p.type, p.baseUrl, llmFormApiKey);
+  }
+
+  async function fetchLlmModels(type: string, baseUrl: string, apiKey: string) {
+    if (!baseUrl) return;
+    setLlmLoadingModels(true);
+    try {
+      const params = new URLSearchParams({ type, baseUrl, apiKey });
+      const res = await fetch(`/api/settings/llm/models?${params}`);
+      const data = await res.json();
+      setLlmAvailableModels(data.models || []);
+    } catch {
+      setLlmAvailableModels([]);
+    }
+    setLlmLoadingModels(false);
+  }
+
+  async function handleSaveLlm() {
+    setLlmFormError("");
+    setLlmSaving(true);
+    try {
+      const res = await fetch("/api/settings/llm", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: llmFormName,
+          type: llmFormType,
+          baseUrl: llmFormBaseUrl,
+          apiKey: llmFormApiKey,
+          model: llmFormModel,
+          purpose: llmFormPurpose,
+        }),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Failed to save");
+      }
+      setLlmShowForm(false);
+      setLlmFormName("");
+      setLlmFormApiKey("");
+      setLlmFormBaseUrl("");
+      setLlmFormModel("");
+      setLlmAvailableModels([]);
+      loadLlmProviders();
+    } catch (err) {
+      setLlmFormError(err instanceof Error ? err.message : "Unknown error");
+    } finally {
+      setLlmSaving(false);
+    }
+  }
+
+  async function handleTestLlm(id: number) {
+    setLlmTesting(id);
+    setLlmTestResult(null);
+    const res = await fetch("/api/settings/llm/test", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id }),
+    });
+    const data = await res.json();
+    setLlmTestResult({ id, ok: data.ok, error: data.error });
+    setLlmTesting(null);
+  }
+
+  async function handleDeleteLlm(id: number) {
+    await fetch(`/api/settings/llm?id=${id}`, { method: "DELETE" });
+    loadLlmProviders();
   }
 
   function clearMessages() {
@@ -281,6 +403,177 @@ export default function SettingsPage() {
             </button>
           </div>
         </div>
+      </div>
+
+      {/* ── LLM Providers ─────────────────────────────────────── */}
+      <div className="bg-white rounded-lg border border-gray-200 p-6 space-y-4">
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg font-semibold text-gray-900">LLM Providers</h2>
+          <button
+            onClick={() => setLlmShowForm(!llmShowForm)}
+            className="bg-blue-600 text-white px-4 py-1.5 rounded-md text-sm font-medium hover:bg-blue-700"
+          >
+            {llmShowForm ? "Cancel" : "Add Provider"}
+          </button>
+        </div>
+
+        {llmShowForm && (
+          <div className="bg-gray-50 rounded-lg p-4 space-y-3">
+            <div>
+              <label className="block text-xs font-medium text-gray-700 mb-1">Quick Preset</label>
+              <div className="flex gap-2 flex-wrap">
+                {LLM_PRESETS.map((p, i) => (
+                  <button
+                    key={p.name}
+                    onClick={() => applyLlmPreset(i)}
+                    className="text-xs bg-white border border-gray-300 rounded px-2 py-1 hover:bg-gray-100"
+                  >
+                    {p.name}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">Name</label>
+                <input
+                  type="text"
+                  value={llmFormName}
+                  onChange={(e) => setLlmFormName(e.target.value)}
+                  className="w-full border border-gray-300 rounded-md px-3 py-1.5 text-sm"
+                  placeholder="OpenAI"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">Type</label>
+                <select
+                  value={llmFormType}
+                  onChange={(e) => setLlmFormType(e.target.value)}
+                  className="w-full border border-gray-300 rounded-md px-3 py-1.5 text-sm"
+                >
+                  <option value="openai-compatible">OpenAI-compatible (OpenAI, OpenRouter, Ollama, LM Studio)</option>
+                  <option value="anthropic">Anthropic (Claude)</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">Base URL</label>
+                <input
+                  type="text"
+                  value={llmFormBaseUrl}
+                  onChange={(e) => setLlmFormBaseUrl(e.target.value)}
+                  className="w-full border border-gray-300 rounded-md px-3 py-1.5 text-sm"
+                  placeholder="https://api.openai.com/v1"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">API Key</label>
+                <input
+                  type="password"
+                  value={llmFormApiKey}
+                  onChange={(e) => setLlmFormApiKey(e.target.value)}
+                  className="w-full border border-gray-300 rounded-md px-3 py-1.5 text-sm"
+                  placeholder="sk-..."
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">
+                  Model
+                  {llmFormBaseUrl && (
+                    <button
+                      onClick={() => fetchLlmModels(llmFormType, llmFormBaseUrl, llmFormApiKey)}
+                      disabled={llmLoadingModels}
+                      className="ml-2 text-blue-600 hover:underline text-xs font-normal"
+                    >
+                      {llmLoadingModels ? "Loading..." : "Fetch Models"}
+                    </button>
+                  )}
+                </label>
+                {llmAvailableModels.length > 0 ? (
+                  <select
+                    value={llmFormModel}
+                    onChange={(e) => setLlmFormModel(e.target.value)}
+                    className="w-full border border-gray-300 rounded-md px-3 py-1.5 text-sm"
+                  >
+                    <option value="">Select a model...</option>
+                    {llmAvailableModels.map((m) => (
+                      <option key={m} value={m}>{m}</option>
+                    ))}
+                  </select>
+                ) : (
+                  <input
+                    type="text"
+                    value={llmFormModel}
+                    onChange={(e) => setLlmFormModel(e.target.value)}
+                    className="w-full border border-gray-300 rounded-md px-3 py-1.5 text-sm"
+                    placeholder="Enter API key first, then click Fetch Models"
+                  />
+                )}
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-700 mb-1">Purpose</label>
+                <select
+                  value={llmFormPurpose}
+                  onChange={(e) => setLlmFormPurpose(e.target.value)}
+                  className="w-full border border-gray-300 rounded-md px-3 py-1.5 text-sm"
+                >
+                  <option value="all">All tasks</option>
+                  <option value="relevance">Relevance filtering only</option>
+                </select>
+              </div>
+            </div>
+
+            {llmFormError && <p className="text-red-600 text-sm">{llmFormError}</p>}
+
+            <button
+              onClick={handleSaveLlm}
+              disabled={llmSaving || !llmFormName || !llmFormBaseUrl || !llmFormModel}
+              className="bg-green-600 text-white px-4 py-1.5 rounded-md text-sm font-medium hover:bg-green-700 disabled:opacity-50"
+            >
+              {llmSaving ? "Saving..." : "Save Provider"}
+            </button>
+          </div>
+        )}
+
+        {llmProviders.length === 0 && !llmShowForm && (
+          <p className="text-sm text-gray-500">No LLM providers configured. Add one to use the relevance filter.</p>
+        )}
+
+        {llmProviders.map((p) => (
+          <div
+            key={p.id}
+            className="flex items-center justify-between border border-gray-100 rounded-md p-3"
+          >
+            <div>
+              <span className="font-medium text-sm">{p.name}</span>
+              <span className="text-gray-500 text-xs ml-2">{p.model} ({p.type})</span>
+              <span className="text-gray-400 text-xs ml-2">[{p.purpose}]</span>
+              {p.isDefault && (
+                <span className="ml-2 text-xs bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded">default</span>
+              )}
+            </div>
+            <div className="flex items-center gap-2">
+              {llmTestResult?.id === p.id && (
+                <span className={`text-xs ${llmTestResult.ok ? "text-green-600" : "text-red-600"}`}>
+                  {llmTestResult.ok ? "Connected" : llmTestResult.error || "Failed"}
+                </span>
+              )}
+              <button
+                onClick={() => handleTestLlm(p.id)}
+                disabled={llmTesting === p.id}
+                className="text-xs text-blue-600 hover:underline disabled:opacity-50"
+              >
+                {llmTesting === p.id ? "Testing..." : "Test"}
+              </button>
+              <button
+                onClick={() => handleDeleteLlm(p.id)}
+                className="text-xs text-red-600 hover:underline"
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        ))}
       </div>
 
       {/* ── Scraper API Keys ──────────────────────────────────── */}

@@ -27,6 +27,13 @@ export default function ProjectResultsPage() {
   const [editingName, setEditingName] = useState(false);
   const [nameValue, setNameValue] = useState("");
 
+  // Relevance filter state
+  const [showRelevanceModal, setShowRelevanceModal] = useState(false);
+  const [relevanceKeyword, setRelevanceKeyword] = useState("");
+  const [relevanceThreshold, setRelevanceThreshold] = useState(50);
+  const [relevanceRunning, setRelevanceRunning] = useState(false);
+  const [relevanceResult, setRelevanceResult] = useState<{ kept: number; dropped: number; droppedProducts?: { id: number; title: string; asin: string }[] } | null>(null);
+
   useEffect(() => {
     fetch("/api/sheets/config")
       .then((r) => r.json())
@@ -177,6 +184,34 @@ export default function ProjectResultsPage() {
     loadData();
   }
 
+  function openRelevanceModal() {
+    const firstKeyword = keywords.length > 0 ? keywords[0].keyword : "";
+    setRelevanceKeyword(firstKeyword);
+    setRelevanceThreshold(50);
+    setRelevanceResult(null);
+    setShowRelevanceModal(true);
+  }
+
+  async function handleRunRelevance() {
+    setRelevanceRunning(true);
+    setRelevanceResult(null);
+    try {
+      const res = await fetch(`/api/projects/${projectId}/relevance`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ keyword: relevanceKeyword, threshold: relevanceThreshold }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      setRelevanceResult(data);
+      loadData();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Relevance filter failed");
+    } finally {
+      setRelevanceRunning(false);
+    }
+  }
+
   function formatDuration(ms: number): string {
     const totalSeconds = Math.floor(ms / 1000);
     const hours = Math.floor(totalSeconds / 3600);
@@ -307,6 +342,14 @@ export default function ProjectResultsPage() {
           >
             Export CSV
           </a>
+          {project.status === "completed" && (
+            <button
+              onClick={openRelevanceModal}
+              className="bg-purple-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-purple-700"
+            >
+              Relevance Filter
+            </button>
+          )}
         </div>
       </div>
 
@@ -357,6 +400,86 @@ export default function ProjectResultsPage() {
             className="bg-blue-600 h-2 rounded-full transition-all"
             style={{ width: `${progress}%` }}
           />
+        </div>
+      )}
+
+      {/* Relevance Filter Modal */}
+      {showRelevanceModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-md space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-semibold text-gray-900">Relevance Filter</h2>
+              <button
+                onClick={() => setShowRelevanceModal(false)}
+                className="text-gray-400 hover:text-gray-600 text-xl leading-none"
+              >
+                &times;
+              </button>
+            </div>
+            <p className="text-sm text-gray-600">
+              Use an LLM to score each product&apos;s relevance to a keyword and auto-exclude low-scoring products.
+            </p>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Keyword</label>
+              <input
+                type="text"
+                value={relevanceKeyword}
+                onChange={(e) => setRelevanceKeyword(e.target.value)}
+                className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm"
+                placeholder="Enter search keyword"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Threshold: {relevanceThreshold}
+              </label>
+              <input
+                type="range"
+                min={0}
+                max={100}
+                value={relevanceThreshold}
+                onChange={(e) => setRelevanceThreshold(Number(e.target.value))}
+                className="w-full"
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                Products scoring below {relevanceThreshold} will be excluded.
+              </p>
+            </div>
+
+            {relevanceResult && (
+              <div className="bg-gray-50 border border-gray-200 rounded-md p-3 space-y-2">
+                <div className="flex gap-4 text-sm">
+                  <span className="text-green-700 font-medium">{relevanceResult.kept} kept</span>
+                  <span className="text-orange-700 font-medium">{relevanceResult.dropped} excluded</span>
+                </div>
+                {relevanceResult.droppedProducts && relevanceResult.droppedProducts.length > 0 && (
+                  <div className="max-h-40 overflow-y-auto space-y-1">
+                    {relevanceResult.droppedProducts.map((p) => (
+                      <p key={p.id} className="text-xs text-gray-500 truncate">
+                        [{p.asin}] {p.title}
+                      </p>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            <div className="flex gap-2 justify-end">
+              <button
+                onClick={() => setShowRelevanceModal(false)}
+                className="px-4 py-2 text-sm text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200"
+              >
+                Close
+              </button>
+              <button
+                onClick={handleRunRelevance}
+                disabled={relevanceRunning || !relevanceKeyword}
+                className="px-4 py-2 text-sm text-white bg-purple-600 rounded-md hover:bg-purple-700 disabled:opacity-50"
+              >
+                {relevanceRunning ? "Running..." : "Run Filter"}
+              </button>
+            </div>
+          </div>
         </div>
       )}
 

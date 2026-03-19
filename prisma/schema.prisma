@@ -75,3 +75,17 @@ model Product {
   excluded           Boolean       @default(false)
   createdAt          DateTime      @default(now())
 }
+
+model LlmProvider {
+  id          Int      @id @default(autoincrement())
+  name        String
+  type        String   @default("openai-compatible") // "openai-compatible" | "anthropic"
+  baseUrl     String
+  apiKey      String   @default("")
+  model       String
+  purpose     String   @default("all") // "all" | "relevance"
+  isDefault   Boolean  @default(false)
+  enabled     Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
