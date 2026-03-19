@@ -53,6 +53,7 @@ export interface KeywordResultData {
   id: number;
   projectId: number;
   keyword: string;
+  productUrls: string | null;
   searchUrl: string;
   status: KeywordStatus;
   errorMessage: string | null;
@@ -113,7 +114,7 @@ export interface ExtractedProduct {
 
 // ── API Payloads ────────────────────────────────────────────────
 export interface CreateProjectPayload {
-  keywords: string[];
+  keywords: Array<{ keyword: string; urls: string[] }>;
   profileId: number;
   productsPerKeyword: number;
   randomProducts?: boolean;

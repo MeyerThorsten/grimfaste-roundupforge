@@ -19,6 +19,13 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Maximum 10,000 keywords allowed' }, { status: 400 });
   }
 
+  // Validate each entry has a keyword
+  for (const entry of body.keywords) {
+    if (!entry.keyword || typeof entry.keyword !== 'string' || !entry.keyword.trim()) {
+      return NextResponse.json({ error: 'Each keyword entry must have a non-empty keyword' }, { status: 400 });
+    }
+  }
+
   if (!body.profileId) {
     return NextResponse.json({ error: 'profileId is required' }, { status: 400 });
   }
@@ -28,14 +35,20 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Profile not found' }, { status: 404 });
   }
 
-  const keywords = body.keywords.map((k) => k.trim()).filter(Boolean);
+  const keywords = body.keywords
+    .map((entry) => ({
+      keyword: entry.keyword.trim(),
+      urls: Array.isArray(entry.urls) ? entry.urls.filter((u) => typeof u === 'string' && u.trim()) : [],
+    }))
+    .filter((entry) => entry.keyword);
+
   if (keywords.length === 0) {
     return NextResponse.json({ error: 'No valid keywords provided' }, { status: 400 });
   }
 
   const productsPerKeyword = Math.min(15, Math.max(3, body.productsPerKeyword || 5));
   const concurrency = Math.min(25, Math.max(1, body.concurrency || 20));
-  const name = body.name || keywords[0].slice(0, 60);
+  const name = body.name || keywords[0].keyword.slice(0, 60);
 
   const project = await createProject(name, body.profileId, productsPerKeyword, keywords, {
     concurrency,

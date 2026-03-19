@@ -10,7 +10,7 @@ import {
   resetFailedKeywords,
 } from '@/lib/services/project.service';
 import { insertProduct, deleteProductsByKeyword } from '@/lib/services/product.service';
-import { buildSearchUrl } from '@/lib/scraping/url-builder';
+import { buildSearchUrl, extractAsin } from '@/lib/scraping/url-builder';
 import { extractProductLinks, detectBlockedPage } from '@/lib/scraping/search-extractor';
 import { extractProduct } from '@/lib/scraping/product-extractor';
 import { getScraper } from '@/lib/scraping/get-scraper';
@@ -56,15 +56,18 @@ export async function runProject(projectId: number, retryOnly = false, sheetsSpr
   const scraper = getScraper();
 
   const isFastMode = project.scrapeMode === 'fast';
+  const rMin = project.randomMin || 5;
   const tasks = keywords.map((kw) =>
     limiter(async () => {
       if (isCancelled(projectId)) return;
-      // Determine product count: random between min and max, or fixed
-      const rMin = project.randomMin || 5;
-      const maxProducts = project.randomProducts
-        ? Math.floor(Math.random() * (project.productsPerKeyword - rMin + 1)) + rMin
-        : project.productsPerKeyword;
-      await processKeyword(kw.id, kw.keyword, profile, maxProducts, projectId, scraper, isFastMode);
+      const hasDirectUrls = !!kw.productUrls;
+      // For direct-URL keywords, ignore productsPerKeyword and randomProducts
+      const maxProducts = hasDirectUrls
+        ? 0 // unused — direct mode scrapes all provided URLs
+        : project.randomProducts
+          ? Math.floor(Math.random() * (project.productsPerKeyword - rMin + 1)) + rMin
+          : project.productsPerKeyword;
+      await processKeyword(kw.id, kw.keyword, profile, maxProducts, projectId, scraper, isFastMode, kw.productUrls);
       await delay(DELAY_MS);
     })
   );
@@ -86,11 +89,68 @@ export async function runProject(projectId: number, retryOnly = false, sheetsSpr
     return;
   }
 
+  // Auto-retry failed keywords
+  const maxRetries = parseInt(process.env.RETRY_FAILED_COUNT || '4', 10);
+  let updated = await getProject(projectId);
+
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    if (!updated || updated.failedKeywords === 0) break;
+    if (isCancelled(projectId)) break;
+
+    logger.info(`Retry ${attempt}/${maxRetries}: ${updated.failedKeywords} failed keywords, waiting 30s`, { projectId });
+    await updateProjectStatus(projectId, `retrying ${attempt}/${maxRetries}`);
+
+    // Wait 30 seconds before retry
+    for (let s = 0; s < 30; s++) {
+      if (isCancelled(projectId)) break;
+      await delay(1000);
+    }
+    if (isCancelled(projectId)) break;
+
+    // Reset failed keywords and re-process them
+    await resetFailedKeywords(projectId);
+    await updateProjectStatus(projectId, 'running');
+
+    const retryKeywords = await getPendingKeywords(projectId);
+    if (retryKeywords.length === 0) break;
+
+    const retryTasks = retryKeywords.map((kw) =>
+      limiter(async () => {
+        if (isCancelled(projectId)) return;
+        const hasDirectUrls = !!kw.productUrls;
+        const maxProducts = hasDirectUrls
+          ? 0
+          : project.randomProducts
+            ? Math.floor(Math.random() * (project.productsPerKeyword - rMin + 1)) + rMin
+            : project.productsPerKeyword;
+        await processKeyword(kw.id, kw.keyword, profile, maxProducts, projectId, scraper, isFastMode, kw.productUrls);
+        await delay(DELAY_MS);
+      })
+    );
+
+    await Promise.all(retryTasks);
+
+    const retryElapsed = Date.now() - runStartTime;
+    await addElapsedTime(projectId, retryElapsed - runElapsed);
+
+    updated = await getProject(projectId);
+    logger.info(`Retry ${attempt}/${maxRetries} finished`, { projectId, remainingFailed: updated?.failedKeywords });
+  }
+
+  // Clean up if cancelled during retry
+  if (isCancelled(projectId)) {
+    clearCancellation(projectId);
+    const { resetCount } = await resetRunningKeywords(projectId);
+    await updateProjectStatus(projectId, 'failed');
+    logger.info('Project stopped by user during retry', { projectId, keywordsReset: resetCount });
+    return;
+  }
+
   // Determine final status
-  const updated = await getProject(projectId);
+  updated = await getProject(projectId);
   const finalStatus = updated && updated.failedKeywords > 0 ? 'failed' : 'completed';
   await updateProjectStatus(projectId, finalStatus);
-  logger.info('Project finished', { projectId, status: finalStatus, runElapsed, totalElapsed: (updated?.elapsedMs || 0) + runElapsed });
+  logger.info('Project finished', { projectId, status: finalStatus, totalElapsed: updated?.elapsedMs || 0 });
 
   // Auto-sync to Google Sheets if configured
   const targetSheet = sheetsSpreadsheetId || process.env.GOOGLE_SHEET_ID;
@@ -132,7 +192,8 @@ async function processKeyword(
   maxProducts: number,
   projectId: number,
   scraper: ReturnType<typeof getScraper>,
-  fastMode = false
+  fastMode = false,
+  productUrls: string | null = null
 ) {
   if (isCancelled(projectId)) return;
 
@@ -141,6 +202,53 @@ async function processKeyword(
 
   try {
     await updateKeywordResult(kwId, { status: 'running' });
+
+    // Direct-URL mode: skip Amazon search, scrape provided product URLs
+    if (productUrls) {
+      const urls: string[] = JSON.parse(productUrls);
+      const links = urls.map((url, i) => ({
+        url,
+        title: '',
+        asin: extractAsin(url),
+        imageUrl: '',
+        position: i + 1,
+      })).filter((link) => link.asin);
+
+      logger.info('Direct-URL mode', { kwId, count: links.length });
+
+      if (links.length === 0) {
+        await updateKeywordResult(kwId, { status: 'failed', errorMessage: 'No valid ASINs found in provided URLs' });
+        await incrementProjectProgress(projectId, false);
+        return;
+      }
+
+      await deleteProductsByKeyword(kwId);
+
+      const productLimiter = pLimit(5);
+      await Promise.all(
+        links.map((link) =>
+          productLimiter(async () => {
+            if (isCancelled(projectId)) return;
+            try {
+              const product = await extractProduct(link, profile, scraper);
+              await insertProduct(kwId, product);
+            } catch (err) {
+              logger.error('Product extraction failed', { kwId, url: link.url, error: String(err) });
+            }
+          })
+        )
+      );
+
+      if (isCancelled(projectId)) {
+        await updateKeywordResult(kwId, { status: 'pending' });
+        return;
+      }
+
+      await updateKeywordResult(kwId, { status: 'success' });
+      await incrementProjectProgress(projectId, true);
+      logger.info('Keyword completed (direct)', { kwId, elapsed: Date.now() - startTime });
+      return;
+    }
 
     // Build search URL
     const searchUrl = buildSearchUrl(keyword, profile.domain);

@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { ScrapeProfileData, ProjectData } from "@/types";
+import { parseKeywordInput } from "@/lib/parsing/keyword-parser";
 
 interface SheetsConfig {
   configured: boolean;
@@ -80,10 +81,7 @@ export default function HomePage() {
       .catch(() => {});
   }, []);
 
-  const keywordCount = keywords
-    .split("\n")
-    .map((l) => l.trim())
-    .filter(Boolean).length;
+  const parsed = parseKeywordInput(keywords);
 
   async function handleLoadKeywords() {
     const sid = sheetsConfig?.defaultSpreadsheetId;
@@ -108,16 +106,16 @@ export default function HomePage() {
 
   async function handleRunBatch() {
     setError("");
-    const lines = keywords
-      .split("\n")
-      .map((l) => l.trim())
-      .filter(Boolean);
 
-    if (lines.length === 0) {
+    if (parsed.groups.length === 0) {
       setError("Enter at least one keyword");
       return;
     }
-    if (lines.length > 10000) {
+    if (parsed.errors.length > 0) {
+      setError("Fix errors in the input before running");
+      return;
+    }
+    if (parsed.keywordCount > 10000) {
       setError("Maximum 10,000 keywords allowed");
       return;
     }
@@ -132,7 +130,7 @@ export default function HomePage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          keywords: lines,
+          keywords: parsed.groups,
           profileId,
           productsPerKeyword,
           randomProducts,
@@ -262,17 +260,49 @@ export default function HomePage() {
         <div>
           <div className="flex items-center justify-between mb-1">
             <label className="block text-sm font-medium text-gray-700">
-              Keywords (one per line)
+              Keywords & Product URLs
             </label>
-            <span className="text-xs text-gray-500">{keywordCount} keywords</span>
+            <span className="text-xs text-gray-500">
+              {parsed.keywordCount} keyword{parsed.keywordCount !== 1 ? "s" : ""}
+              {parsed.productCount > 0 && ` · ${parsed.productCount} product${parsed.productCount !== 1 ? "s" : ""}`}
+            </span>
           </div>
           <textarea
             value={keywords}
             onChange={(e) => setKeywords(e.target.value)}
             rows={8}
             className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            placeholder={"best robotic pool cleaners for inground pools\nbest robotic pool cleaners for above ground pools\nbest cordless robotic pool cleaners"}
+            placeholder={"best robotic pool cleaners for inground pools\nhttps://www.amazon.com/dp/B07C4P8MBL\nhttps://www.amazon.com/dp/B07BHTBDQ3\n\nbest cordless robotic pool cleaners"}
           />
+          {/* Live Preview */}
+          {parsed.groups.length > 0 && (
+            <div className="mt-2 space-y-1">
+              {parsed.errors.length > 0 && (
+                <div className="text-red-600 text-xs space-y-0.5">
+                  {parsed.errors.map((err, i) => (
+                    <p key={i}>{err}</p>
+                  ))}
+                </div>
+              )}
+              <div className="bg-gray-50 rounded-md border border-gray-200 p-3 space-y-1 max-h-40 overflow-y-auto">
+                {parsed.groups.map((g, i) => (
+                  <div key={i} className="text-xs text-gray-600 flex justify-between">
+                    <span className="font-medium text-gray-800 truncate mr-2">{g.keyword}</span>
+                    <span className="shrink-0">
+                      {g.urls.length > 0
+                        ? `${g.urls.length} product${g.urls.length !== 1 ? "s" : ""}`
+                        : "will search Amazon"}
+                    </span>
+                  </div>
+                ))}
+              </div>
+              {scrapeMode === "fast" && parsed.productCount > 0 && (
+                <p className="text-xs text-blue-600">
+                  Direct product URLs always use full scrape mode (1 API call per product)
+                </p>
+              )}
+            </div>
+          )}
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 items-end">
@@ -387,9 +417,18 @@ export default function HomePage() {
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-end mt-3">
           <div className="text-xs text-gray-500 bg-gray-50 rounded-md p-2">
             <strong>Est. calls:</strong>{" "}
-            {scrapeMode === "fast"
-              ? `${keywordCount} (1 per keyword)`
-              : `~${keywordCount * (1 + (randomProducts ? Math.round((randomMin + productsPerKeyword) / 2) : productsPerKeyword))} (1 + ${randomProducts ? `${randomMin}–${productsPerKeyword}` : productsPerKeyword} per keyword)`}
+            {(() => {
+              const searchKeywords = parsed.groups.filter((g) => g.urls.length === 0).length;
+              const directProducts = parsed.productCount;
+              const perSearchKeyword = scrapeMode === "fast"
+                ? 1
+                : 1 + (randomProducts ? Math.round((randomMin + productsPerKeyword) / 2) : productsPerKeyword);
+              const total = searchKeywords * perSearchKeyword + directProducts;
+              const parts: string[] = [];
+              if (searchKeywords > 0) parts.push(`${searchKeywords * perSearchKeyword} from ${searchKeywords} search keyword${searchKeywords !== 1 ? "s" : ""}`);
+              if (directProducts > 0) parts.push(`${directProducts} from direct URLs`);
+              return parts.length > 0 ? `~${total} (${parts.join(" + ")})` : "0";
+            })()}
           </div>
 
           <button
@@ -440,17 +479,19 @@ export default function HomePage() {
 }
 
 function StatusBadge({ status }: { status: string }) {
+  const isRetrying = status.startsWith("retrying");
   const colors: Record<string, string> = {
     pending: "bg-gray-100 text-gray-700",
     running: "bg-blue-100 text-blue-700",
     completed: "bg-green-100 text-green-700",
     failed: "bg-red-100 text-red-700",
   };
+  const colorClass = isRetrying
+    ? "bg-amber-100 text-amber-700"
+    : colors[status] || colors.pending;
   return (
-    <span
-      className={`px-2 py-0.5 rounded-full text-xs font-medium ${colors[status] || colors.pending}`}
-    >
-      {status}
+    <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${colorClass}`}>
+      {isRetrying ? "retrying" : status}
     </span>
   );
 }

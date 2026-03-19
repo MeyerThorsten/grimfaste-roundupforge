@@ -47,6 +47,7 @@ model KeywordResult {
   projectId    Int
   project      Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
   keyword      String
+  productUrls  String?   // JSON array of Amazon URLs, null for search-mode keywords
   searchUrl    String    @default("")
   status       String    @default("pending")
   errorMessage String?
