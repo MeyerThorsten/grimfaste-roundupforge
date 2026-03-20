@@ -42,6 +42,10 @@ export interface ProjectData {
   completedKeywords: number;
   failedKeywords: number;
   elapsedMs: number;
+  relevanceFilter: boolean;
+  relevanceThreshold: number;
+  relevanceStatus: string;
+  relevanceDropped: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -122,6 +126,8 @@ export interface CreateProjectPayload {
   scrapeMode?: ScrapeMode;
   concurrency?: number;
   name?: string;
+  relevanceFilter?: boolean;
+  relevanceThreshold?: number;
 }
 
 export interface KeywordWithProducts extends KeywordResultData {

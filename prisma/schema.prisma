@@ -37,6 +37,10 @@ model Project {
   completedKeywords  Int             @default(0)
   failedKeywords     Int             @default(0)
   elapsedMs          Int             @default(0)
+  relevanceFilter    Boolean         @default(false)
+  relevanceThreshold Int             @default(50)
+  relevanceStatus    String          @default("")  // "" | "pending" | "running" | "done" | "failed"
+  relevanceDropped   Int             @default(0)
   createdAt          DateTime        @default(now())
   updatedAt          DateTime        @updatedAt
   keywords           KeywordResult[]

@@ -15,6 +15,10 @@ function toProjectData(row: {
   completedKeywords: number;
   failedKeywords: number;
   elapsedMs: number;
+  relevanceFilter: boolean;
+  relevanceThreshold: number;
+  relevanceStatus: string;
+  relevanceDropped: number;
   createdAt: Date;
   updatedAt: Date;
 }): ProjectData {
@@ -32,6 +36,10 @@ function toProjectData(row: {
     completedKeywords: row.completedKeywords,
     failedKeywords: row.failedKeywords,
     elapsedMs: row.elapsedMs || 0,
+    relevanceFilter: row.relevanceFilter,
+    relevanceThreshold: row.relevanceThreshold,
+    relevanceStatus: row.relevanceStatus,
+    relevanceDropped: row.relevanceDropped,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
   };
@@ -138,7 +146,7 @@ export async function createProject(
   profileId: number,
   productsPerKeyword: number,
   keywords: Array<{ keyword: string; urls: string[] }>,
-  options: { concurrency?: number; randomProducts?: boolean; randomMin?: number; scrapeMode?: string } = {}
+  options: { concurrency?: number; randomProducts?: boolean; randomMin?: number; scrapeMode?: string; relevanceFilter?: boolean; relevanceThreshold?: number } = {}
 ): Promise<ProjectData> {
   const row = await prisma.project.create({
     data: {
@@ -149,6 +157,9 @@ export async function createProject(
       randomMin: options.randomMin ?? 5,
       scrapeMode: options.scrapeMode ?? 'full',
       concurrency: options.concurrency ?? 20,
+      relevanceFilter: options.relevanceFilter ?? false,
+      relevanceThreshold: options.relevanceThreshold ?? 50,
+      relevanceStatus: options.relevanceFilter ? 'pending' : '',
       totalKeywords: keywords.length,
       keywords: {
         create: keywords.map(({ keyword, urls }) => ({

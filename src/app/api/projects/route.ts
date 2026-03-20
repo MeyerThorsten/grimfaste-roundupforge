@@ -55,6 +55,8 @@ export async function POST(request: Request) {
     randomProducts: body.randomProducts ?? false,
     randomMin: Math.min(body.randomMin || 5, productsPerKeyword),
     scrapeMode: body.scrapeMode === 'fast' ? 'fast' : 'full',
+    relevanceFilter: body.relevanceFilter ?? false,
+    relevanceThreshold: Math.min(100, Math.max(0, body.relevanceThreshold || 50)),
   });
   return NextResponse.json(project, { status: 201 });
 }

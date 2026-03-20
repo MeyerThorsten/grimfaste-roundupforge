@@ -152,6 +152,45 @@ export async function runProject(projectId: number, retryOnly = false, sheetsSpr
   await updateProjectStatus(projectId, finalStatus);
   logger.info('Project finished', { projectId, status: finalStatus, totalElapsed: updated?.elapsedMs || 0 });
 
+  // Auto-run relevance filter if enabled
+  if (finalStatus === 'completed' && updated?.relevanceFilter) {
+    try {
+      const { prisma } = await import('@/lib/prisma');
+      await prisma.project.update({ where: { id: projectId }, data: { relevanceStatus: 'running' } });
+      logger.info('Running auto-relevance filter', { projectId, threshold: updated.relevanceThreshold });
+
+      const { filterByRelevance } = await import('@/lib/relevance-filter');
+      const keywordResults = await prisma.keywordResult.findMany({
+        where: { projectId },
+        include: { products: { where: { excluded: false } } },
+      });
+
+      let totalDropped = 0;
+      for (const kw of keywordResults) {
+        if (kw.products.length === 0) continue;
+        const products = kw.products.map((p) => ({ id: p.id, asin: p.asin, title: p.title }));
+        const result = await filterByRelevance(kw.keyword, products, updated.relevanceThreshold);
+        if (result.dropped.length > 0) {
+          await prisma.product.updateMany({
+            where: { id: { in: result.dropped.map((p) => p.id) } },
+            data: { excluded: true },
+          });
+          totalDropped += result.dropped.length;
+        }
+      }
+
+      await prisma.project.update({
+        where: { id: projectId },
+        data: { relevanceStatus: 'done', relevanceDropped: totalDropped },
+      });
+      logger.info('Auto-relevance filter completed', { projectId, dropped: totalDropped });
+    } catch (err) {
+      const { prisma } = await import('@/lib/prisma');
+      await prisma.project.update({ where: { id: projectId }, data: { relevanceStatus: 'failed' } });
+      logger.error('Auto-relevance filter failed', { projectId, error: String(err) });
+    }
+  }
+
   // Auto-sync to Google Sheets if configured
   const targetSheet = sheetsSpreadsheetId || process.env.GOOGLE_SHEET_ID;
   if (targetSheet && isConfigured()) {
