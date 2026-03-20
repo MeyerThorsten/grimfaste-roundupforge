@@ -148,7 +148,7 @@ export default function HomePage() {
         }),
       });
       if (!res.ok) {
-        const data = await res.json();
+        const data = await res.json().catch(() => ({ error: `Server error (${res.status})` }));
         throw new Error(data.error || "Failed to create project");
       }
       const project = await res.json();
