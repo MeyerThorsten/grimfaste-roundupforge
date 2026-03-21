@@ -171,15 +171,23 @@ export async function runProject(projectId: number, retryOnly = false, sheetsSpr
 
       let totalDropped = 0;
       let progress = 0;
+      let failedKeywords = 0;
+      let lastError = '';
       for (const kw of keywordsWithProducts) {
-        const products = kw.products.map((p) => ({ id: p.id, asin: p.asin, title: p.title }));
-        const result = await filterByRelevance(kw.keyword, products, updated.relevanceThreshold);
-        if (result.dropped.length > 0) {
-          await prisma.product.updateMany({
-            where: { id: { in: result.dropped.map((p) => p.id) } },
-            data: { excluded: true },
-          });
-          totalDropped += result.dropped.length;
+        try {
+          const products = kw.products.map((p) => ({ id: p.id, asin: p.asin, title: p.title }));
+          const result = await filterByRelevance(kw.keyword, products, updated.relevanceThreshold);
+          if (result.dropped.length > 0) {
+            await prisma.product.updateMany({
+              where: { id: { in: result.dropped.map((p) => p.id) } },
+              data: { excluded: true },
+            });
+            totalDropped += result.dropped.length;
+          }
+        } catch (kwErr) {
+          failedKeywords++;
+          lastError = String(kwErr);
+          logger.warn('Relevance filter failed for keyword', { projectId, keyword: kw.keyword, error: lastError });
         }
         progress++;
         await prisma.project.update({
@@ -188,15 +196,28 @@ export async function runProject(projectId: number, retryOnly = false, sheetsSpr
         });
       }
 
-      await prisma.project.update({
-        where: { id: projectId },
-        data: { relevanceStatus: 'done', relevanceDropped: totalDropped },
-      });
-      logger.info('Auto-relevance filter completed', { projectId, dropped: totalDropped });
+      if (failedKeywords > 0 && failedKeywords === keywordsWithProducts.length) {
+        await prisma.project.update({
+          where: { id: projectId },
+          data: { relevanceStatus: 'failed', relevanceDropped: totalDropped, relevanceError: lastError },
+        });
+        logger.error('Auto-relevance filter failed for all keywords', { projectId, error: lastError });
+      } else {
+        await prisma.project.update({
+          where: { id: projectId },
+          data: {
+            relevanceStatus: 'done',
+            relevanceDropped: totalDropped,
+            relevanceError: failedKeywords > 0 ? `${failedKeywords} keyword(s) failed: ${lastError}` : '',
+          },
+        });
+        logger.info('Auto-relevance filter completed', { projectId, dropped: totalDropped, failedKeywords });
+      }
     } catch (err) {
       const { prisma } = await import('@/lib/prisma');
-      await prisma.project.update({ where: { id: projectId }, data: { relevanceStatus: 'failed' } });
-      logger.error('Auto-relevance filter failed', { projectId, error: String(err) });
+      const errorMsg = String(err);
+      await prisma.project.update({ where: { id: projectId }, data: { relevanceStatus: 'failed', relevanceError: errorMsg } });
+      logger.error('Auto-relevance filter failed', { projectId, error: errorMsg });
     }
   }
 

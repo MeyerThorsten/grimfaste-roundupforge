@@ -21,6 +21,7 @@ function toProjectData(row: {
   relevanceDropped: number;
   relevanceProgress: number;
   relevanceTotal: number;
+  relevanceError: string;
   createdAt: Date;
   updatedAt: Date;
 }): ProjectData {
@@ -44,6 +45,7 @@ function toProjectData(row: {
     relevanceDropped: row.relevanceDropped,
     relevanceProgress: row.relevanceProgress,
     relevanceTotal: row.relevanceTotal,
+    relevanceError: row.relevanceError,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
   };

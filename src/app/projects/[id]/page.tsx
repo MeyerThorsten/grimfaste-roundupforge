@@ -326,13 +326,14 @@ export default function ProjectResultsPage() {
                 </span>
               )}
               {(project as any).relevanceStatus === "done" && (
-                <span className="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full font-medium">
+                <span className="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full font-medium" title={(project as any).relevanceError || ""}>
                   Relevance filter: {(project as any).relevanceDropped} products excluded (threshold: {(project as any).relevanceThreshold})
+                  {(project as any).relevanceError ? ` — ${(project as any).relevanceError.slice(0, 80)}` : ""}
                 </span>
               )}
               {(project as any).relevanceStatus === "failed" && (
-                <span className="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded-full font-medium">
-                  Relevance filter failed
+                <span className="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded-full font-medium" title={(project as any).relevanceError || ""}>
+                  Relevance filter failed{(project as any).relevanceError ? `: ${(project as any).relevanceError.slice(0, 120)}` : ""}
                 </span>
               )}
             </div>

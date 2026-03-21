@@ -48,6 +48,7 @@ export interface ProjectData {
   relevanceDropped: number;
   relevanceProgress: number;
   relevanceTotal: number;
+  relevanceError: string;
   createdAt: string;
   updatedAt: string;
 }
