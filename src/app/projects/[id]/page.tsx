@@ -60,8 +60,8 @@ export default function ProjectResultsPage() {
   // Auto-poll while running or while relevance filter is active
   useEffect(() => {
     const isRunning = project?.status === "running" || project?.status === "pending" || project?.status?.startsWith("retrying");
-    const isFilterRunning = (project as any)?.relevanceStatus === "running";
-    if (!project || (!isRunning && !isFilterRunning)) return;
+    const isFilterActive = (project as any)?.relevanceStatus === "running" || (project as any)?.relevanceStatus === "pending";
+    if (!project || (!isRunning && !isFilterActive)) return;
     const interval = setInterval(loadData, 3000);
     return () => clearInterval(interval);
   }, [project?.status, (project as any)?.relevanceStatus, loadData]);
