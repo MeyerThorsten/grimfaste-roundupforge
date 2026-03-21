@@ -155,6 +155,18 @@ export default function ProjectResultsPage() {
     }
   }
 
+  function downloadAllInOneFile() {
+    if (!roundupPacks) return;
+    const combined = roundupPacks.map((p) => p.content).join("\n");
+    const blob = new Blob([combined], { type: "text/plain" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `project-${projectId}-roundup.txt`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
   async function handleSaveToSheets() {
     setSheetsSaving(true);
     setSheetsResult(null);
@@ -389,12 +401,20 @@ export default function ProjectResultsPage() {
             <span className="text-sm font-medium text-blue-900">
               Roundup export split into {roundupPacks.length} packs (100 keywords each)
             </span>
-            <button
-              onClick={downloadAllPacks}
-              className="bg-blue-600 text-white px-3 py-1.5 rounded-md text-xs font-medium hover:bg-blue-700"
-            >
-              Download All Packs
-            </button>
+            <div className="flex gap-2">
+              <button
+                onClick={downloadAllInOneFile}
+                className="bg-blue-600 text-white px-3 py-1.5 rounded-md text-xs font-medium hover:bg-blue-700"
+              >
+                Save All in One File
+              </button>
+              <button
+                onClick={downloadAllPacks}
+                className="bg-white border border-blue-300 text-blue-700 px-3 py-1.5 rounded-md text-xs font-medium hover:bg-blue-100"
+              >
+                Download All Packs
+              </button>
+            </div>
           </div>
           <div className="flex flex-wrap gap-2">
             {roundupPacks.map((pack) => (
