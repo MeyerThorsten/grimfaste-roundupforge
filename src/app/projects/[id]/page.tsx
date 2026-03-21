@@ -66,6 +66,19 @@ export default function ProjectResultsPage() {
     return () => clearInterval(interval);
   }, [project?.status, (project as any)?.relevanceStatus, loadData]);
 
+  // Auto-trigger relevance filter if stuck on pending after scraping completed
+  useEffect(() => {
+    if (
+      project?.status === "completed" &&
+      (project as any)?.relevanceFilter &&
+      (project as any)?.relevanceStatus === "pending"
+    ) {
+      fetch(`/api/projects/${projectId}/relevance/auto`, { method: "POST" })
+        .then(() => setTimeout(loadData, 1000))
+        .catch(() => {});
+    }
+  }, [project?.status, (project as any)?.relevanceStatus]);
+
   // Track when running starts for live timer
   useEffect(() => {
     if ((project?.status === "running" || project?.status?.startsWith("retrying")) && !runStartTime) {
