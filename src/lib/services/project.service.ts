@@ -19,6 +19,8 @@ function toProjectData(row: {
   relevanceThreshold: number;
   relevanceStatus: string;
   relevanceDropped: number;
+  relevanceProgress: number;
+  relevanceTotal: number;
   createdAt: Date;
   updatedAt: Date;
 }): ProjectData {
@@ -40,6 +42,8 @@ function toProjectData(row: {
     relevanceThreshold: row.relevanceThreshold,
     relevanceStatus: row.relevanceStatus,
     relevanceDropped: row.relevanceDropped,
+    relevanceProgress: row.relevanceProgress,
+    relevanceTotal: row.relevanceTotal,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
   };

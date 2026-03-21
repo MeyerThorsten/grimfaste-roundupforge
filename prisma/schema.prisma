@@ -41,6 +41,8 @@ model Project {
   relevanceThreshold Int             @default(50)
   relevanceStatus    String          @default("")  // "" | "pending" | "running" | "done" | "failed"
   relevanceDropped   Int             @default(0)
+  relevanceProgress  Int             @default(0)   // keywords filtered so far
+  relevanceTotal     Int             @default(0)   // total keywords to filter
   createdAt          DateTime        @default(now())
   updatedAt          DateTime        @updatedAt
   keywords           KeywordResult[]

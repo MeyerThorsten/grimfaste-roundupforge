@@ -156,18 +156,22 @@ export async function runProject(projectId: number, retryOnly = false, sheetsSpr
   if (finalStatus === 'completed' && updated?.relevanceFilter) {
     try {
       const { prisma } = await import('@/lib/prisma');
-      await prisma.project.update({ where: { id: projectId }, data: { relevanceStatus: 'running' } });
-      logger.info('Running auto-relevance filter', { projectId, threshold: updated.relevanceThreshold });
-
       const { filterByRelevance } = await import('@/lib/relevance-filter');
       const keywordResults = await prisma.keywordResult.findMany({
         where: { projectId },
         include: { products: { where: { excluded: false } } },
       });
 
+      const keywordsWithProducts = keywordResults.filter((kw) => kw.products.length > 0);
+      await prisma.project.update({
+        where: { id: projectId },
+        data: { relevanceStatus: 'running', relevanceProgress: 0, relevanceTotal: keywordsWithProducts.length },
+      });
+      logger.info('Running auto-relevance filter', { projectId, threshold: updated.relevanceThreshold, totalKeywords: keywordsWithProducts.length });
+
       let totalDropped = 0;
-      for (const kw of keywordResults) {
-        if (kw.products.length === 0) continue;
+      let progress = 0;
+      for (const kw of keywordsWithProducts) {
         const products = kw.products.map((p) => ({ id: p.id, asin: p.asin, title: p.title }));
         const result = await filterByRelevance(kw.keyword, products, updated.relevanceThreshold);
         if (result.dropped.length > 0) {
@@ -177,6 +181,11 @@ export async function runProject(projectId: number, retryOnly = false, sheetsSpr
           });
           totalDropped += result.dropped.length;
         }
+        progress++;
+        await prisma.project.update({
+          where: { id: projectId },
+          data: { relevanceProgress: progress },
+        });
       }
 
       await prisma.project.update({

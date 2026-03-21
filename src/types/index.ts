@@ -46,6 +46,8 @@ export interface ProjectData {
   relevanceThreshold: number;
   relevanceStatus: string;
   relevanceDropped: number;
+  relevanceProgress: number;
+  relevanceTotal: number;
   createdAt: string;
   updatedAt: string;
 }
