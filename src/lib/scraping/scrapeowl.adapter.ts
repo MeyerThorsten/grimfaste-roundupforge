@@ -19,7 +19,7 @@ export class ScrapeOwlAdapter implements ScraperAdapter {
   }
 
   async fetchPage(url: string, options?: FetchOptions): Promise<string> {
-    const renderJs = options?.renderJs ?? true;
+    const renderJs = options?.renderJs ?? false;
     let lastError: Error | null = null;
 
     for (let attempt = 1; attempt <= MAX_RETRIES + 1; attempt++) {
@@ -55,7 +55,6 @@ export class ScrapeOwlAdapter implements ScraperAdapter {
         body: JSON.stringify({
           api_key: this.apiKey,
           url,
-          premium_proxies: true,
           country: 'us',
           render_js: renderJs,
           json_response: true,
