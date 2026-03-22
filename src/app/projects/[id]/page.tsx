@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams } from "next/navigation";
 import { ProjectData, KeywordWithProducts, ProductData } from "@/types";
 
@@ -67,15 +67,22 @@ export default function ProjectResultsPage() {
   }, [project?.status, (project as any)?.relevanceStatus, loadData]);
 
   // Auto-trigger relevance filter if stuck on pending after scraping completed
+  const autoTriggeredRef = useRef(false);
   useEffect(() => {
     if (
       project?.status === "completed" &&
       (project as any)?.relevanceFilter &&
-      (project as any)?.relevanceStatus === "pending"
+      (project as any)?.relevanceStatus === "pending" &&
+      !autoTriggeredRef.current
     ) {
-      fetch(`/api/projects/${projectId}/relevance/auto`, { method: "POST" })
+      autoTriggeredRef.current = true;
+      fetch(`/api/projects/${projectId}/relevance`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mode: "auto" }),
+      })
         .then(() => setTimeout(loadData, 1000))
-        .catch(() => {});
+        .catch(() => { autoTriggeredRef.current = false; });
     }
   }, [project?.status, (project as any)?.relevanceStatus]);
 

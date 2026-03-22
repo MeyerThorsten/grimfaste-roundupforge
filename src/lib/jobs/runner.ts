@@ -156,7 +156,13 @@ export async function runProject(projectId: number, retryOnly = false, sheetsSpr
   if (finalStatus === 'completed' && updated?.relevanceFilter) {
     try {
       const port = process.env.PORT || '3000';
-      await fetch(`http://localhost:${port}/api/projects/${projectId}/relevance/auto`, { method: 'POST' });
+      fetch(`http://localhost:${port}/api/projects/${projectId}/relevance`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mode: 'auto' }),
+      }).catch((err) => {
+        logger.error('Auto-relevance filter request failed', { projectId, error: String(err) });
+      });
       logger.info('Triggered auto-relevance filter via API', { projectId });
     } catch (err) {
       logger.error('Failed to trigger auto-relevance filter', { projectId, error: String(err) });
