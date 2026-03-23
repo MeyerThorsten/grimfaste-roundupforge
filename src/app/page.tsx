@@ -26,7 +26,7 @@ export default function HomePage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  const [maxConcurrent, setMaxConcurrent] = useState(25);
+  const [maxConcurrent, setMaxConcurrent] = useState(45);
 
   // Google Sheets state
   const [sheetsConfig, setSheetsConfig] = useState<SheetsConfig | null>(null);

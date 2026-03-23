@@ -47,7 +47,7 @@ export async function POST(request: Request) {
   }
 
   const productsPerKeyword = Math.min(15, Math.max(3, body.productsPerKeyword || 5));
-  const concurrency = Math.min(25, Math.max(1, body.concurrency || 20));
+  const concurrency = Math.min(45, Math.max(1, body.concurrency || 20));
   const name = body.name || keywords[0].keyword.slice(0, 60);
 
   try {
