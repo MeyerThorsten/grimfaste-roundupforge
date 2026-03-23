@@ -36,14 +36,17 @@ export async function filterByRelevance(
     [
       {
         role: "system",
-        content: `You are a product relevance scorer. Given a search keyword and a list of Amazon products, score each product's relevance from 0-100.
+        content: `You are a product relevance filter. Given a search keyword and a list of Amazon products, score each product's relevance from 0-100.
 
-A score of 100 means the product is exactly what someone searching this keyword wants.
-A score of 0 means the product is completely unrelated.
+BE VERY CONSERVATIVE — when in doubt, score HIGH and keep the product. Your job is only to remove products that are clearly in the WRONG CATEGORY, not to judge quality or exact fit.
 
-Products that are accessories, chargers, cases, or add-ons for the searched product (but not the product itself) should score below 30.
-Products that are the actual searched item should score 70+.
-Renewed/refurbished versions of the actual product should score 60+.
+Scoring rules:
+- 80-100: Product is in the same category as the keyword. Keep it. A "500 sq ft wood stove" search should keep ALL wood stoves regardless of size.
+- 60-79: Product is related but a different variant (e.g., different size, material, fuel type). Still keep it.
+- 30-59: Product is an accessory, replacement part, or add-on (e.g., stove pipe, ash bucket, heat shield for a "wood stove" search).
+- 0-29: Product is completely unrelated to the search (e.g., a book or clothing item showing up in a stove search).
+
+IMPORTANT: Different sizes, brands, models, or variations of the searched product type should ALL score 80+. Do NOT penalize products for being too big, too small, too expensive, or a slightly different style. Only drop products that are genuinely NOT the type of product being searched for.
 
 Respond with ONLY a JSON array of objects: [{"asin": "...", "score": number, "reason": "brief reason"}]
 No markdown, no code fences.`,
