@@ -1,5 +1,23 @@
 # Changelog
 
+## [1.1.0] - 2026-03-23
+
+### Changed
+- **Relevance Filter is now manual only** — removed auto-run after scraping to avoid competing with concurrent scraping jobs and give users control over when to filter
+- **Improved relevance filter prompt** — much more conservative scoring; only drops genuinely wrong-category products (accessories, toys, unrelated items), keeps all product variants regardless of size/brand/model
+- **Reduced ScrapeOwl credit usage** — disabled `premium_proxies` and `render_js` by default (~87% credit reduction)
+- **"Save All in One File" for Export Roundup** — when split into packs, adds option to download all packs combined into a single text file
+
+### Added
+- **"Run on All Keywords" button** — in the Relevance Filter modal, runs per-keyword filtering with progress tracking
+- **Relevance filter progress tracking** — shows live progress (e.g., "45/300 keywords") instead of generic spinner
+- **Per-keyword error resilience** — single LLM failures no longer abort the entire filter; errors are counted and shown
+- **Error visibility** — relevance filter errors are stored and displayed in the UI badge
+
+### Fixed
+- Fixed UI polling stopping when scraping completed, leaving relevance status badge stale
+- Fixed relevance filter not starting due to stale Prisma client after migrations
+
 ## [1.0.0] - 2026-03-20
 
 ### Features

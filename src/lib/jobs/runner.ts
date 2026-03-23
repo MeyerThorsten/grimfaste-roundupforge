@@ -152,23 +152,6 @@ export async function runProject(projectId: number, retryOnly = false, sheetsSpr
   await updateProjectStatus(projectId, finalStatus);
   logger.info('Project finished', { projectId, status: finalStatus, totalElapsed: updated?.elapsedMs || 0 });
 
-  // Auto-run relevance filter if enabled — trigger via API so it runs in a fresh context
-  if (finalStatus === 'completed' && updated?.relevanceFilter) {
-    try {
-      const port = process.env.PORT || '3000';
-      fetch(`http://localhost:${port}/api/projects/${projectId}/relevance`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mode: 'auto' }),
-      }).catch((err) => {
-        logger.error('Auto-relevance filter request failed', { projectId, error: String(err) });
-      });
-      logger.info('Triggered auto-relevance filter via API', { projectId });
-    } catch (err) {
-      logger.error('Failed to trigger auto-relevance filter', { projectId, error: String(err) });
-    }
-  }
-
   // Auto-sync to Google Sheets if configured
   const targetSheet = sheetsSpreadsheetId || process.env.GOOGLE_SHEET_ID;
   if (targetSheet && isConfigured()) {

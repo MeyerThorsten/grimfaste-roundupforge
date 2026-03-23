@@ -60,7 +60,7 @@ export default function ProjectResultsPage() {
   // Auto-poll while running or while relevance filter is active
   useEffect(() => {
     const isRunning = project?.status === "running" || project?.status === "pending" || project?.status?.startsWith("retrying");
-    const isFilterActive = (project as any)?.relevanceStatus === "running" || (project as any)?.relevanceStatus === "pending";
+    const isFilterActive = (project as any)?.relevanceStatus === "running";
     if (!project || (!isRunning && !isFilterActive)) return;
     const interval = setInterval(loadData, 3000);
     return () => clearInterval(interval);
@@ -226,6 +226,17 @@ export default function ProjectResultsPage() {
     }
   }
 
+  async function handleRunRelevanceAll() {
+    setShowRelevanceModal(false);
+    // Fire and forget — progress is tracked via polling
+    fetch(`/api/projects/${projectId}/relevance`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ mode: "auto" }),
+    }).catch(() => {});
+    setTimeout(loadData, 1000);
+  }
+
   function formatDuration(ms: number): string {
     const totalSeconds = Math.floor(ms / 1000);
     const hours = Math.floor(totalSeconds / 3600);
@@ -309,7 +320,7 @@ export default function ProjectResultsPage() {
               <>Completed in {formatDuration(totalElapsed)}</>
             ) : null}
           </p>
-          {(project as any).relevanceFilter && (
+          {((project as any).relevanceStatus === "running" || (project as any).relevanceStatus === "done" || (project as any).relevanceStatus === "failed") && (
             <div className="flex items-center gap-2 mt-1">
               {(project as any).relevanceStatus === "running" && (
                 <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-medium flex items-center gap-1">
@@ -318,11 +329,6 @@ export default function ProjectResultsPage() {
                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
                   </svg>
                   Relevance filter: {(project as any).relevanceProgress}/{(project as any).relevanceTotal} keywords
-                </span>
-              )}
-              {(project as any).relevanceStatus === "pending" && (
-                <span className="text-xs bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded-full font-medium">
-                  Relevance filter pending (runs after scraping)
                 </span>
               )}
               {(project as any).relevanceStatus === "done" && (
@@ -515,20 +521,29 @@ export default function ProjectResultsPage() {
               </div>
             )}
 
-            <div className="flex gap-2 justify-end">
+            <div className="flex gap-2 justify-between">
               <button
-                onClick={() => setShowRelevanceModal(false)}
-                className="px-4 py-2 text-sm text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200"
+                onClick={handleRunRelevanceAll}
+                disabled={relevanceRunning}
+                className="px-4 py-2 text-sm text-white bg-blue-600 rounded-md hover:bg-blue-700 disabled:opacity-50"
               >
-                Close
+                Run on All Keywords
               </button>
-              <button
-                onClick={handleRunRelevance}
-                disabled={relevanceRunning || !relevanceKeyword}
-                className="px-4 py-2 text-sm text-white bg-purple-600 rounded-md hover:bg-purple-700 disabled:opacity-50"
-              >
-                {relevanceRunning ? "Running..." : "Run Filter"}
-              </button>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setShowRelevanceModal(false)}
+                  className="px-4 py-2 text-sm text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200"
+                >
+                  Close
+                </button>
+                <button
+                  onClick={handleRunRelevance}
+                  disabled={relevanceRunning || !relevanceKeyword}
+                  className="px-4 py-2 text-sm text-white bg-purple-600 rounded-md hover:bg-purple-700 disabled:opacity-50"
+                >
+                  {relevanceRunning ? "Running..." : "Run Filter"}
+                </button>
+              </div>
             </div>
           </div>
         </div>

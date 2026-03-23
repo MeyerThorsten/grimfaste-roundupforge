@@ -143,8 +143,6 @@ export default function HomePage() {
           scrapeMode,
           concurrency,
           name: projectName || undefined,
-          relevanceFilter,
-          relevanceThreshold,
         }),
       });
       if (!res.ok) {
@@ -419,36 +417,6 @@ export default function HomePage() {
               Max {maxConcurrent} (from ScrapeOwl plan). Lower if ZimmWriter is running.
             </p>
           </div>
-        </div>
-
-        {/* Relevance Filter Toggle */}
-        <div className="flex items-start gap-4 mt-3 bg-purple-50 rounded-md border border-purple-200 p-3">
-          <label className="flex items-center gap-2 text-sm text-purple-800 shrink-0">
-            <input
-              type="checkbox"
-              checked={relevanceFilter}
-              onChange={(e) => setRelevanceFilter(e.target.checked)}
-            />
-            Auto-filter by relevance after scraping
-          </label>
-          {relevanceFilter && (
-            <div className="flex items-center gap-2 flex-1">
-              <label className="text-xs text-purple-700 shrink-0">
-                Threshold: {relevanceThreshold}
-              </label>
-              <input
-                type="range"
-                min={10}
-                max={90}
-                value={relevanceThreshold}
-                onChange={(e) => setRelevanceThreshold(Number(e.target.value))}
-                className="flex-1"
-              />
-              <span className="text-[10px] text-purple-500 shrink-0">
-                Products scoring below {relevanceThreshold} will be excluded
-              </span>
-            </div>
-          )}
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-end mt-3">
