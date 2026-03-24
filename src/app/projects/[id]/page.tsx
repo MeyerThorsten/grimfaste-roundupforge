@@ -391,7 +391,7 @@ export default function ProjectResultsPage() {
           >
             Export CSV
           </a>
-          {project.status === "completed" && (
+          {(project.status === "completed" || project.status === "failed") && (
             <button
               onClick={openRelevanceModal}
               className="bg-purple-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-purple-700"
