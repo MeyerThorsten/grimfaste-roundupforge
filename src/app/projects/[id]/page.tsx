@@ -355,12 +355,12 @@ export default function ProjectResultsPage() {
               Stop Batch
             </button>
           )}
-          {project.failedKeywords > 0 && project.status !== "running" && (
+          {project.status === "failed" && (project.failedKeywords > 0 || project.completedKeywords < project.totalKeywords) && (
             <button
               onClick={handleRetry}
               className="bg-orange-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-orange-700"
             >
-              Retry Failed
+              {project.failedKeywords > 0 ? "Retry Failed" : "Resume"}
             </button>
           )}
           {sheetsConfig?.configured && (
