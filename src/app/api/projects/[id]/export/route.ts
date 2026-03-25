@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getProjectWithKeywords } from '@/lib/services/project.service';
+import { getProfile } from '@/lib/services/profile.service';
 import { toCSV } from '@/lib/export/csv';
 import { toRoundup, toRoundupPacks } from '@/lib/export/roundup';
 import { ProjectExport } from '@/types';
@@ -10,6 +11,9 @@ export async function GET(request: Request, { params }: Params) {
   const { id } = await params;
   const result = await getProjectWithKeywords(Number(id));
   if (!result) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+
+  const profile = await getProfile(result.project.profileId);
+  const domain = profile?.domain || 'amazon.com';
 
   const { searchParams } = new URL(request.url);
   const format = searchParams.get('format') || 'json';
@@ -35,7 +39,7 @@ export async function GET(request: Request, { params }: Params) {
 
     // No packing or everything fits in one pack → single file
     if (!packSize || packSize <= 0) {
-      const text = toRoundup(filteredKeywords);
+      const text = toRoundup(filteredKeywords, domain);
       return new Response(text, {
         headers: {
           'Content-Type': 'text/plain; charset=utf-8',
@@ -45,7 +49,7 @@ export async function GET(request: Request, { params }: Params) {
     }
 
     // Multiple packs → return JSON array of pack objects
-    const packs = toRoundupPacks(filteredKeywords, packSize);
+    const packs = toRoundupPacks(filteredKeywords, packSize, domain);
     const packObjects = packs.map((content, i) => ({
       pack: i + 1,
       totalPacks: packs.length,

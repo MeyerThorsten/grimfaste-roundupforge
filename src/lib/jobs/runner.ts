@@ -12,6 +12,7 @@ import {
 import { insertProduct, deleteProductsByKeyword } from '@/lib/services/product.service';
 import { buildSearchUrl, extractAsin } from '@/lib/scraping/url-builder';
 import { extractProductLinks, detectBlockedPage } from '@/lib/scraping/search-extractor';
+import { getCountryForDomain } from '@/lib/scraping/amazon-domains';
 import { extractProduct } from '@/lib/scraping/product-extractor';
 import { getScraper } from '@/lib/scraping/get-scraper';
 import { getProjectWithKeywords } from '@/lib/services/project.service';
@@ -260,12 +261,13 @@ async function processKeyword(
     }
 
     // Fetch search results (with retry on blocked pages)
-    let searchHtml = await scraper.fetchPage(searchUrl);
+    const country = getCountryForDomain(profile.domain);
+    let searchHtml = await scraper.fetchPage(searchUrl, { country });
     let blocked = detectBlockedPage(searchHtml);
     if (blocked) {
       logger.warn('Blocked page detected, retrying', { kwId, reason: blocked });
       await new Promise((r) => setTimeout(r, 5000));
-      searchHtml = await scraper.fetchPage(searchUrl);
+      searchHtml = await scraper.fetchPage(searchUrl, { country });
       blocked = detectBlockedPage(searchHtml);
     }
     if (blocked) {
@@ -274,7 +276,7 @@ async function processKeyword(
       return;
     }
 
-    const links = extractProductLinks(searchHtml, maxProducts);
+    const links = extractProductLinks(searchHtml, maxProducts, profile.domain);
     logger.info('Found product links', { kwId, count: links.length });
 
     if (links.length === 0) {
@@ -290,7 +292,7 @@ async function processKeyword(
       // Fast mode: use search result data only — no product page visits
       for (const link of links) {
         const affiliateUrl = profile.affiliateCode
-          ? `https://www.amazon.com/dp/${link.asin}?tag=${profile.affiliateCode}`
+          ? `https://www.${profile.domain}/dp/${link.asin}?tag=${profile.affiliateCode}`
           : link.url;
         await insertProduct(kwId, {
           title: link.title,

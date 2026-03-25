@@ -26,7 +26,7 @@ export class ScrapingBeeAdapter implements ScraperAdapter {
     const params = new URLSearchParams({
       api_key: this.apiKey,
       url,
-      country_code: 'us',
+      country_code: options?.country || 'us',
       premium_proxy: 'true',
     });
     if (renderJs) params.set('render_js', 'true');

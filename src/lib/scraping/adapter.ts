@@ -1,5 +1,6 @@
 export interface FetchOptions {
   renderJs?: boolean;
+  country?: string;
 }
 
 export interface ScraperAdapter {

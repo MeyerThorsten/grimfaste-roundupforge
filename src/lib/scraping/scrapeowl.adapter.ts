@@ -20,11 +20,12 @@ export class ScrapeOwlAdapter implements ScraperAdapter {
 
   async fetchPage(url: string, options?: FetchOptions): Promise<string> {
     const renderJs = options?.renderJs ?? false;
+    const country = options?.country ?? 'us';
     let lastError: Error | null = null;
 
     for (let attempt = 1; attempt <= MAX_RETRIES + 1; attempt++) {
       try {
-        return await this.doFetch(url, renderJs, attempt);
+        return await this.doFetch(url, renderJs, attempt, country);
       } catch (err) {
         lastError = err instanceof Error ? err : new Error(String(err));
         const isRetryable = lastError.message.includes('500') ||
@@ -42,7 +43,7 @@ export class ScrapeOwlAdapter implements ScraperAdapter {
     throw lastError!;
   }
 
-  private async doFetch(url: string, renderJs: boolean, attempt: number): Promise<string> {
+  private async doFetch(url: string, renderJs: boolean, attempt: number, country = 'us'): Promise<string> {
     const startTime = Date.now();
 
     const controller = new AbortController();
@@ -55,12 +56,9 @@ export class ScrapeOwlAdapter implements ScraperAdapter {
         body: JSON.stringify({
           api_key: this.apiKey,
           url,
-          country: 'us',
+          country,
           render_js: renderJs,
           json_response: true,
-          custom_headers: {
-            'Accept-Language': 'en-US,en;q=0.9',
-          },
         }),
         signal: controller.signal,
       });

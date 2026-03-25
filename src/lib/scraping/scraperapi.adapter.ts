@@ -26,7 +26,7 @@ export class ScraperApiAdapter implements ScraperAdapter {
     const params = new URLSearchParams({
       api_key: this.apiKey,
       url,
-      country_code: 'us',
+      country_code: options?.country || 'us',
     });
     if (renderJs) params.set('render', 'true');
     // Premium for Amazon

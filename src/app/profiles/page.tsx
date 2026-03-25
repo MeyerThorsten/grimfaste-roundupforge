@@ -3,6 +3,30 @@
 import { useState, useEffect } from "react";
 import { ScrapeProfileData, TextSelectorEntry } from "@/types";
 
+const AMAZON_MARKETPLACES = [
+  { domain: 'amazon.com',    label: 'Amazon US' },
+  { domain: 'amazon.co.uk',  label: 'Amazon UK' },
+  { domain: 'amazon.de',     label: 'Amazon Germany' },
+  { domain: 'amazon.fr',     label: 'Amazon France' },
+  { domain: 'amazon.it',     label: 'Amazon Italy' },
+  { domain: 'amazon.es',     label: 'Amazon Spain' },
+  { domain: 'amazon.ca',     label: 'Amazon Canada' },
+  { domain: 'amazon.com.au', label: 'Amazon Australia' },
+  { domain: 'amazon.co.jp',  label: 'Amazon Japan' },
+  { domain: 'amazon.in',     label: 'Amazon India' },
+  { domain: 'amazon.com.br', label: 'Amazon Brazil' },
+  { domain: 'amazon.com.mx', label: 'Amazon Mexico' },
+  { domain: 'amazon.nl',     label: 'Amazon Netherlands' },
+  { domain: 'amazon.se',     label: 'Amazon Sweden' },
+  { domain: 'amazon.pl',     label: 'Amazon Poland' },
+  { domain: 'amazon.com.be', label: 'Amazon Belgium' },
+  { domain: 'amazon.sg',     label: 'Amazon Singapore' },
+  { domain: 'amazon.sa',     label: 'Amazon Saudi Arabia' },
+  { domain: 'amazon.ae',     label: 'Amazon UAE' },
+  { domain: 'amazon.com.tr', label: 'Amazon Turkey' },
+  { domain: 'amazon.eg',     label: 'Amazon Egypt' },
+];
+
 const DEFAULT_SELECTORS: TextSelectorEntry[] = [
   { label: "Feature Bullets", selector: "#feature-bullets", treatAsReview: false },
   { label: "Description", selector: "#productDescription_feature_div", treatAsReview: false },
@@ -173,6 +197,25 @@ export default function ProfilesPage() {
         <h2 className="font-semibold text-gray-900">
           {editingId ? "Edit Profile" : "New Profile"}
         </h2>
+
+        {!editingId && (
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Amazon Marketplace</label>
+            <select
+              onChange={(e) => {
+                const mp = AMAZON_MARKETPLACES.find((m) => m.domain === e.target.value);
+                if (mp) setForm({ ...form, name: mp.label, domain: mp.domain });
+              }}
+              value={form.domain}
+              className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm"
+            >
+              <option value="">Select a marketplace...</option>
+              {AMAZON_MARKETPLACES.map((mp) => (
+                <option key={mp.domain} value={mp.domain}>{mp.label} ({mp.domain})</option>
+              ))}
+            </select>
+          </div>
+        )}
 
         <div className="grid grid-cols-2 gap-4">
           <div>

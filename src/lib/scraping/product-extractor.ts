@@ -2,6 +2,7 @@ import * as cheerio from 'cheerio';
 import { ScraperAdapter } from './adapter';
 import { normalizeText, dedupeTexts, buildMergedText } from './normalizer';
 import { extractAsin, buildAffiliateUrl } from './url-builder';
+import { getCountryForDomain } from './amazon-domains';
 import { ScrapeProfileData, ExtractedProduct, ProductLink } from '@/types';
 import { logger } from '@/lib/utils/logger';
 
@@ -14,7 +15,8 @@ export async function extractProduct(
 
   let html: string;
   try {
-    html = await scraper.fetchPage(link.url, { renderJs: false });
+    const country = getCountryForDomain(profile.domain);
+    html = await scraper.fetchPage(link.url, { renderJs: false, country });
     debug.htmlLength = html.length;
   } catch (err) {
     logger.error('Failed to fetch product page', { url: link.url, error: String(err) });
@@ -59,7 +61,7 @@ export async function extractProduct(
   const allTexts = dedupeTexts(Object.values(sectionTexts));
   const mergedText = buildMergedText(allTexts);
 
-  const affiliateUrl = buildAffiliateUrl(link.url, asin, profile.affiliateCode);
+  const affiliateUrl = buildAffiliateUrl(link.url, asin, profile.affiliateCode, profile.domain);
 
   return {
     title,
@@ -88,7 +90,7 @@ function makeEmptyProduct(
     title: link.title,
     asin,
     productUrl: link.url,
-    affiliateUrl: buildAffiliateUrl(link.url, asin, profile.affiliateCode),
+    affiliateUrl: buildAffiliateUrl(link.url, asin, profile.affiliateCode, profile.domain),
     imageUrl: link.imageUrl,
     featureBullets: '',
     productDescription: '',

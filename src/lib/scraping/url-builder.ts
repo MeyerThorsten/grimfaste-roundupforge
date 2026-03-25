@@ -7,10 +7,10 @@ export function extractAsin(url: string): string {
   return match ? match[1] : '';
 }
 
-export function buildAffiliateUrl(productUrl: string, asin: string, affiliateCode: string): string {
+export function buildAffiliateUrl(productUrl: string, asin: string, affiliateCode: string, domain = 'amazon.com'): string {
   if (!affiliateCode) return productUrl;
   if (asin) {
-    return `https://www.amazon.com/dp/${asin}?tag=${affiliateCode}`;
+    return `https://www.${domain}/dp/${asin}?tag=${affiliateCode}`;
   }
   const separator = productUrl.includes('?') ? '&' : '?';
   return `${productUrl}${separator}tag=${affiliateCode}`;

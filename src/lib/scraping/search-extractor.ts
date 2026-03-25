@@ -19,7 +19,7 @@ export function detectBlockedPage(html: string): string | null {
   return null;
 }
 
-export function extractProductLinks(html: string, limit: number): ProductLink[] {
+export function extractProductLinks(html: string, limit: number, domain = 'amazon.com'): ProductLink[] {
   const $ = cheerio.load(html);
   const results: ProductLink[] = [];
   const seenAsins = new Set<string>();
@@ -55,7 +55,7 @@ export function extractProductLinks(html: string, limit: number): ProductLink[] 
       href = `/dp/${asin}`;
     }
 
-    const url = href.startsWith('http') ? href : `https://www.amazon.com${href}`;
+    const url = href.startsWith('http') ? href : `https://www.${domain}${href}`;
     const imageUrl = $el.find('.s-image').first().attr('src') || '';
 
     results.push({ url, title, asin, imageUrl, position: results.length + 1 });
