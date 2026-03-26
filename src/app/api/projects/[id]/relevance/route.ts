@@ -77,10 +77,6 @@ async function handleAutoRelevance(projectId: number) {
     return NextResponse.json({ error: "Project not found" }, { status: 404 });
   }
 
-  if (!project.relevanceFilter) {
-    return NextResponse.json({ error: "Relevance filter not enabled" }, { status: 400 });
-  }
-
   if (project.relevanceStatus === "running") {
     return NextResponse.json({ error: "Relevance filter already running" }, { status: 409 });
   }

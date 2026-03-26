@@ -9,7 +9,7 @@ import {
   getPendingKeywords,
   resetFailedKeywords,
 } from '@/lib/services/project.service';
-import { insertProduct, deleteProductsByKeyword } from '@/lib/services/product.service';
+import { insertProduct, deleteProductsByKeyword, countProductsByKeyword } from '@/lib/services/product.service';
 import { buildSearchUrl, extractAsin } from '@/lib/scraping/url-builder';
 import { extractProductLinks, detectBlockedPage } from '@/lib/scraping/search-extractor';
 import { getCountryForDomain } from '@/lib/scraping/amazon-domains';
@@ -93,6 +93,7 @@ export async function runProject(projectId: number, retryOnly = false, sheetsSpr
   // Auto-retry failed keywords
   const maxRetries = parseInt(process.env.RETRY_FAILED_COUNT || '4', 10);
   let updated = await getProject(projectId);
+  let lastCheckpoint = Date.now();
 
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     if (!updated || updated.failedKeywords === 0) break;
@@ -131,8 +132,9 @@ export async function runProject(projectId: number, retryOnly = false, sheetsSpr
 
     await Promise.all(retryTasks);
 
-    const retryElapsed = Date.now() - runStartTime;
-    await addElapsedTime(projectId, retryElapsed - runElapsed);
+    const now = Date.now();
+    await addElapsedTime(projectId, now - lastCheckpoint);
+    lastCheckpoint = now;
 
     updated = await getProject(projectId);
     logger.info(`Retry ${attempt}/${maxRetries} finished`, { projectId, remainingFailed: updated?.failedKeywords });
@@ -245,9 +247,15 @@ async function processKeyword(
         return;
       }
 
-      await updateKeywordResult(kwId, { status: 'success' });
-      await incrementProjectProgress(projectId, true);
-      logger.info('Keyword completed (direct)', { kwId, elapsed: Date.now() - startTime });
+      const directProductCount = await countProductsByKeyword(kwId);
+      if (directProductCount === 0) {
+        await updateKeywordResult(kwId, { status: 'failed', errorMessage: 'All product extractions failed — 0 products saved' });
+        await incrementProjectProgress(projectId, false);
+      } else {
+        await updateKeywordResult(kwId, { status: 'success' });
+        await incrementProjectProgress(projectId, true);
+      }
+      logger.info('Keyword completed (direct)', { kwId, products: directProductCount, elapsed: Date.now() - startTime });
       return;
     }
 
@@ -333,9 +341,15 @@ async function processKeyword(
       return;
     }
 
-    await updateKeywordResult(kwId, { status: 'success' });
-    await incrementProjectProgress(projectId, true);
-    logger.info('Keyword completed', { kwId, elapsed: Date.now() - startTime });
+    const productCount = await countProductsByKeyword(kwId);
+    if (productCount === 0) {
+      await updateKeywordResult(kwId, { status: 'failed', errorMessage: 'All product extractions failed — 0 products saved' });
+      await incrementProjectProgress(projectId, false);
+    } else {
+      await updateKeywordResult(kwId, { status: 'success' });
+      await incrementProjectProgress(projectId, true);
+    }
+    logger.info('Keyword completed', { kwId, products: productCount, elapsed: Date.now() - startTime });
   } catch (err) {
     if (isCancelled(projectId)) {
       await updateKeywordResult(kwId, { status: 'pending' });

@@ -1,6 +1,6 @@
 import { extractAsin } from '@/lib/scraping/url-builder';
 
-const AMAZON_URL_PATTERN = /^https?:\/\/(www\.)?amazon\.\w+\/.*(\/dp\/|\/gp\/product\/)[A-Z0-9]{10}/i;
+const AMAZON_URL_PATTERN = /^https?:\/\/(www\.)?amazon\.[\w.]+\/.*(\/dp\/|\/gp\/product\/)[A-Z0-9]{10}/i;
 
 export interface KeywordGroup {
   keyword: string;

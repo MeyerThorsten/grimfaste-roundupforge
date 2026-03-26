@@ -26,6 +26,10 @@ export async function deleteProductsByKeyword(keywordResultId: number) {
   await prisma.product.deleteMany({ where: { keywordResultId } });
 }
 
+export async function countProductsByKeyword(keywordResultId: number): Promise<number> {
+  return prisma.product.count({ where: { keywordResultId } });
+}
+
 export async function toggleProductExclusion(productId: number, excluded: boolean) {
   return prisma.product.update({
     where: { id: productId },

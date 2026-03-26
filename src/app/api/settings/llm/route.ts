@@ -1,11 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
+function maskApiKey(key: string): string {
+  if (!key || key.length <= 8) return key ? "••••••••" : "";
+  return key.slice(0, 4) + "••••" + key.slice(-4);
+}
+
 export async function GET() {
   const providers = await prisma.llmProvider.findMany({
     orderBy: [{ isDefault: "desc" }, { name: "asc" }],
   });
-  return NextResponse.json(providers);
+  const masked = providers.map((p) => ({
+    ...p,
+    apiKey: maskApiKey(p.apiKey),
+  }));
+  return NextResponse.json(masked);
 }
 
 export async function POST(request: NextRequest) {

@@ -11,7 +11,7 @@ export async function POST(_request: Request, { params }: Params) {
   const project = await getProject(projectId);
   if (!project) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
-  if (project.status !== 'running') {
+  if (project.status !== 'running' && !project.status.startsWith('retrying') && project.status !== 'pending') {
     return NextResponse.json({ error: 'Project is not running' }, { status: 400 });
   }
 

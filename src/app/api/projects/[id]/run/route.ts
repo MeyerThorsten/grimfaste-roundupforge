@@ -11,6 +11,10 @@ export async function POST(request: Request, { params }: Params) {
   const project = await getProject(projectId);
   if (!project) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
+  if (project.status === 'running' || project.status.startsWith('retrying')) {
+    return NextResponse.json({ error: 'Project is already running' }, { status: 409 });
+  }
+
   const body = await request.json().catch(() => ({}));
   const retryOnly = Boolean(body.retryOnly);
   const sheetsSpreadsheetId = body.sheetsSpreadsheetId as string | undefined;
