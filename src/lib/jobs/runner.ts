@@ -51,8 +51,9 @@ export async function runProject(projectId: number, retryOnly = false, sheetsSpr
     return;
   }
 
-  const concurrency = project.concurrency || 20;
-  logger.info('Runner concurrency', { concurrency, projectId });
+  const maxConcurrency = parseInt(process.env.MAX_CONCURRENCY || '45', 10);
+  const concurrency = Math.min(project.concurrency || 20, maxConcurrency);
+  logger.info('Runner concurrency', { concurrency, maxConcurrency, projectId });
   const limiter = pLimit(concurrency);
   const scraper = getScraper();
 
@@ -155,8 +156,17 @@ export async function runProject(projectId: number, retryOnly = false, sheetsSpr
   await updateProjectStatus(projectId, finalStatus);
   logger.info('Project finished', { projectId, status: finalStatus, totalElapsed: updated?.elapsedMs || 0 });
 
+  // Advance the queue — start next queued project if any
+  try {
+    const { processQueue } = await import('@/lib/jobs/queue-processor');
+    await processQueue();
+  } catch (err) {
+    logger.error('Failed to advance queue', { projectId, error: String(err) });
+  }
+
   // Auto-sync to Google Sheets if configured
-  const targetSheet = sheetsSpreadsheetId || process.env.GOOGLE_SHEET_ID;
+  const projectRecord = await getProject(projectId);
+  const targetSheet = sheetsSpreadsheetId || projectRecord?.sheetsSpreadsheetId || process.env.GOOGLE_SHEET_ID;
   if (targetSheet && isConfigured()) {
     try {
       const fullProject = await getProjectWithKeywords(projectId);

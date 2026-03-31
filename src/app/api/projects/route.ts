@@ -1,9 +1,14 @@
 import { NextResponse } from 'next/server';
-import { createProject, listProjects } from '@/lib/services/project.service';
+import { createProject, listProjects, enqueueProject } from '@/lib/services/project.service';
 import { getProfile } from '@/lib/services/profile.service';
+import { processQueue, recoverQueue } from '@/lib/jobs/queue-processor';
+
 import { CreateProjectPayload } from '@/types';
 
 export async function GET() {
+  // Recover queue on first access after server restart, then process
+  await recoverQueue();
+  processQueue().catch(console.error);
   const projects = await listProjects();
   return NextResponse.json(projects);
 }
@@ -51,6 +56,7 @@ export async function POST(request: Request) {
   const name = body.name || keywords[0].keyword.slice(0, 60);
 
   try {
+    const sheetsSpreadsheetId = (body as unknown as Record<string, unknown>).sheetsSpreadsheetId as string | undefined;
     const project = await createProject(name, body.profileId, productsPerKeyword, keywords, {
       concurrency,
       randomProducts: body.randomProducts ?? false,
@@ -58,8 +64,14 @@ export async function POST(request: Request) {
       scrapeMode: body.scrapeMode === 'fast' ? 'fast' : 'full',
       relevanceFilter: body.relevanceFilter ?? false,
       relevanceThreshold: Math.min(100, Math.max(0, body.relevanceThreshold || 50)),
+      sheetsSpreadsheetId: sheetsSpreadsheetId || '',
     });
-    return NextResponse.json(project, { status: 201 });
+
+    // Auto-queue and start processing
+    await enqueueProject(project.id);
+    processQueue().catch(console.error);
+
+    return NextResponse.json({ ...project, status: 'queued' }, { status: 201 });
   } catch (err) {
     return NextResponse.json(
       { error: err instanceof Error ? err.message : 'Failed to create project' },

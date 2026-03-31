@@ -22,6 +22,8 @@ function toProjectData(row: {
   relevanceProgress: number;
   relevanceTotal: number;
   relevanceError: string;
+  queuedAt: Date | null;
+  sheetsSpreadsheetId: string;
   createdAt: Date;
   updatedAt: Date;
 }): ProjectData {
@@ -46,6 +48,8 @@ function toProjectData(row: {
     relevanceProgress: row.relevanceProgress,
     relevanceTotal: row.relevanceTotal,
     relevanceError: row.relevanceError,
+    queuedAt: row.queuedAt?.toISOString() ?? null,
+    sheetsSpreadsheetId: row.sheetsSpreadsheetId,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
   };
@@ -152,7 +156,7 @@ export async function createProject(
   profileId: number,
   productsPerKeyword: number,
   keywords: Array<{ keyword: string; urls: string[] }>,
-  options: { concurrency?: number; randomProducts?: boolean; randomMin?: number; scrapeMode?: string; relevanceFilter?: boolean; relevanceThreshold?: number } = {}
+  options: { concurrency?: number; randomProducts?: boolean; randomMin?: number; scrapeMode?: string; relevanceFilter?: boolean; relevanceThreshold?: number; sheetsSpreadsheetId?: string } = {}
 ): Promise<ProjectData> {
   const row = await prisma.project.create({
     data: {
@@ -166,6 +170,7 @@ export async function createProject(
       relevanceFilter: options.relevanceFilter ?? false,
       relevanceThreshold: options.relevanceThreshold ?? 50,
       relevanceStatus: options.relevanceFilter ? 'pending' : '',
+      sheetsSpreadsheetId: options.sheetsSpreadsheetId ?? '',
       totalKeywords: keywords.length,
       keywords: {
         create: keywords.map(({ keyword, urls }) => ({
@@ -213,4 +218,59 @@ export async function updateKeywordResult(
   data: { status?: string; searchUrl?: string; errorMessage?: string | null }
 ) {
   await prisma.keywordResult.update({ where: { id }, data });
+}
+
+// ── Queue Operations ────────────────────────────────────
+
+export async function enqueueProject(id: number) {
+  await prisma.project.update({
+    where: { id },
+    data: { status: 'queued', queuedAt: new Date() },
+  });
+}
+
+export async function dequeueProject(id: number) {
+  await prisma.project.update({
+    where: { id },
+    data: { status: 'pending', queuedAt: null },
+  });
+}
+
+export async function getNextQueued(): Promise<ProjectData | null> {
+  const row = await prisma.project.findFirst({
+    where: { status: 'queued' },
+    orderBy: { queuedAt: 'asc' },
+  });
+  return row ? toProjectData(row) : null;
+}
+
+export async function isAnyProjectRunning(): Promise<boolean> {
+  const running = await prisma.project.findFirst({
+    where: {
+      OR: [
+        { status: 'running' },
+        { status: { startsWith: 'retrying' } },
+      ],
+    },
+  });
+  return !!running;
+}
+
+export async function getQueueStatus(): Promise<{ running: ProjectData | null; queued: ProjectData[] }> {
+  const running = await prisma.project.findFirst({
+    where: {
+      OR: [
+        { status: 'running' },
+        { status: { startsWith: 'retrying' } },
+      ],
+    },
+  });
+  const queued = await prisma.project.findMany({
+    where: { status: 'queued' },
+    orderBy: { queuedAt: 'asc' },
+  });
+  return {
+    running: running ? toProjectData(running) : null,
+    queued: queued.map(toProjectData),
+  };
 }

@@ -44,6 +44,8 @@ model Project {
   relevanceProgress  Int             @default(0)   // keywords filtered so far
   relevanceTotal     Int             @default(0)   // total keywords to filter
   relevanceError     String          @default("")  // last error message if failed
+  queuedAt           DateTime?                     // when queued; null = not queued
+  sheetsSpreadsheetId String         @default("")  // Google Sheets ID for deferred sync
   createdAt          DateTime        @default(now())
   updatedAt          DateTime        @updatedAt
   keywords           KeywordResult[]

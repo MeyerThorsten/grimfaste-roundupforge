@@ -24,7 +24,7 @@ export type ScrapeProfileCreateInput = Omit<ScrapeProfileData, 'id' | 'createdAt
 export type ScrapeProfileUpdateInput = Partial<ScrapeProfileCreateInput>;
 
 // ── Project ─────────────────────────────────────────────────────
-export type ProjectStatus = 'pending' | 'running' | 'completed' | 'failed';
+export type ProjectStatus = 'pending' | 'queued' | 'running' | 'completed' | 'failed';
 
 export type ScrapeMode = 'full' | 'fast';
 
@@ -49,6 +49,8 @@ export interface ProjectData {
   relevanceProgress: number;
   relevanceTotal: number;
   relevanceError: string;
+  queuedAt: string | null;
+  sheetsSpreadsheetId: string;
   createdAt: string;
   updatedAt: string;
 }

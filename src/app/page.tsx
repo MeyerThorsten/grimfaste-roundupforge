@@ -36,8 +36,6 @@ export default function HomePage() {
   const [syncToSheets, setSyncToSheets] = useState(false);
 
   // Relevance filter state
-  const [relevanceFilter, setRelevanceFilter] = useState(false);
-  const [relevanceThreshold, setRelevanceThreshold] = useState(50);
 
   useEffect(() => {
     fetch("/api/profiles")
@@ -49,15 +47,16 @@ export default function HomePage() {
     fetch("/api/projects")
       .then((r) => r.json())
       .then(setProjects);
-    fetch("/api/scrapers")
-      .then((r) => r.json())
-      .then((data) => {
-        if (data.maxConcurrent) {
-          setMaxConcurrent(data.maxConcurrent);
-          if (concurrency > data.maxConcurrent) setConcurrency(data.maxConcurrent);
-        }
-      })
-      .catch(() => {});
+    Promise.all([
+      fetch("/api/scrapers").then((r) => r.json()),
+      fetch("/api/settings/general").then((r) => r.json()),
+    ]).then(([scraperData, generalData]) => {
+      const scraperMax = scraperData.maxConcurrent || 45;
+      const globalMax = generalData.maxConcurrency || 45;
+      const effectiveMax = Math.min(scraperMax, globalMax);
+      setMaxConcurrent(effectiveMax);
+      if (concurrency > effectiveMax) setConcurrency(effectiveMax);
+    }).catch(() => {});
     fetch("/api/sheets/config")
       .then((r) => r.json())
       .then((config: SheetsConfig) => {
@@ -143,6 +142,7 @@ export default function HomePage() {
           scrapeMode,
           concurrency,
           name: projectName || undefined,
+          sheetsSpreadsheetId: syncToSheets && sheetsConfig?.defaultSpreadsheetId ? sheetsConfig.defaultSpreadsheetId : undefined,
         }),
       });
       if (!res.ok) {
@@ -150,15 +150,6 @@ export default function HomePage() {
         throw new Error(data.error || "Failed to create project");
       }
       const project = await res.json();
-
-      await fetch(`/api/projects/${project.id}/run`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          sheetsSpreadsheetId: syncToSheets && sheetsConfig?.defaultSpreadsheetId ? sheetsConfig.defaultSpreadsheetId : undefined,
-        }),
-      });
-
       router.push(`/projects/${project.id}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unknown error");
@@ -487,6 +478,7 @@ function StatusBadge({ status }: { status: string }) {
   const isRetrying = status.startsWith("retrying");
   const colors: Record<string, string> = {
     pending: "bg-gray-100 text-gray-700",
+    queued: "bg-yellow-100 text-yellow-700",
     running: "bg-blue-100 text-blue-700",
     completed: "bg-green-100 text-green-700",
     failed: "bg-red-100 text-red-700",

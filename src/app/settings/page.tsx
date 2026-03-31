@@ -48,6 +48,7 @@ interface ScrapersConfig {
 export default function SettingsPage() {
   const [generalConfig, setGeneralConfig] = useState<GeneralConfig | null>(null);
   const [retryCount, setRetryCount] = useState(4);
+  const [maxConcurrency, setMaxConcurrency] = useState(45);
   const [googleConfig, setGoogleConfig] = useState<GoogleConfig | null>(null);
   const [scrapersConfig, setScrapersConfig] = useState<ScrapersConfig | null>(null);
   const [sheetId, setSheetId] = useState("");
@@ -100,19 +101,20 @@ export default function SettingsPage() {
     const data = await res.json();
     setGeneralConfig(data);
     setRetryCount(data.retryCount ?? 4);
+    setMaxConcurrency(data.maxConcurrency ?? 45);
   }
 
-  async function handleSaveRetryCount() {
+  async function handleSaveGeneral() {
     clearMessages();
     try {
       const res = await fetch("/api/settings/general", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ retryCount }),
+        body: JSON.stringify({ retryCount, maxConcurrency }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
-      setMessage(`Retry count saved: ${data.retryCount}`);
+      setMessage("Settings saved");
       loadGeneralConfig();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to save");
@@ -395,14 +397,35 @@ export default function SettingsPage() {
               className="flex-1"
             />
             <span className="text-sm font-mono text-gray-700 w-6 text-center">{retryCount}</span>
-            <button
-              onClick={handleSaveRetryCount}
-              className="bg-blue-600 text-white px-4 py-1.5 rounded-md text-sm font-medium hover:bg-blue-700"
-            >
-              Save
-            </button>
           </div>
         </div>
+
+        <div className="space-y-2">
+          <label className="block text-sm font-medium text-gray-700">
+            Global max concurrency: {maxConcurrency}
+          </label>
+          <p className="text-xs text-gray-500">
+            Maximum concurrent scraping requests across all projects. Per-project concurrency is capped to this value.
+          </p>
+          <div className="flex items-center gap-3">
+            <input
+              type="range"
+              min={1}
+              max={50}
+              value={maxConcurrency}
+              onChange={(e) => setMaxConcurrency(Number(e.target.value))}
+              className="flex-1"
+            />
+            <span className="text-sm font-mono text-gray-700 w-6 text-center">{maxConcurrency}</span>
+          </div>
+        </div>
+
+        <button
+          onClick={handleSaveGeneral}
+          className="bg-blue-600 text-white px-4 py-1.5 rounded-md text-sm font-medium hover:bg-blue-700"
+        >
+          Save Settings
+        </button>
       </div>
 
       {/* ── LLM Providers ─────────────────────────────────────── */}

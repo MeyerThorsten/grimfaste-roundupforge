@@ -15,6 +15,10 @@ export async function POST(request: Request, { params }: Params) {
     return NextResponse.json({ error: 'Project is already running' }, { status: 409 });
   }
 
+  if (project.status === 'queued') {
+    return NextResponse.json({ error: 'Project is queued. Remove from queue first.' }, { status: 400 });
+  }
+
   const body = await request.json().catch(() => ({}));
   const retryOnly = Boolean(body.retryOnly);
   const sheetsSpreadsheetId = body.sheetsSpreadsheetId as string | undefined;

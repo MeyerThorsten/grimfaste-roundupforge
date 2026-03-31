@@ -59,7 +59,7 @@ export default function ProjectResultsPage() {
 
   // Auto-poll while running or while relevance filter is active
   useEffect(() => {
-    const isRunning = project?.status === "running" || project?.status === "pending" || project?.status?.startsWith("retrying");
+    const isRunning = project?.status === "running" || project?.status === "pending" || project?.status === "queued" || project?.status?.startsWith("retrying");
     const isFilterActive = (project as any)?.relevanceStatus === "running";
     if (!project || (!isRunning && !isFilterActive)) return;
     const interval = setInterval(loadData, 3000);
@@ -347,6 +347,14 @@ export default function ProjectResultsPage() {
         </div>
         <div className="flex items-center gap-3">
           <StatusBadge status={project.status} />
+          {project.status === "queued" && (
+            <button
+              onClick={handleStop}
+              className="bg-yellow-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-yellow-700"
+            >
+              Remove from Queue
+            </button>
+          )}
           {(project.status === "running" || project.status === "pending" || project.status.startsWith("retrying")) && (
             <button
               onClick={handleStop}
@@ -730,6 +738,7 @@ function StatusBadge({ status }: { status: string }) {
   const isRetrying = status.startsWith("retrying");
   const colors: Record<string, string> = {
     pending: "bg-gray-100 text-gray-700",
+    queued: "bg-yellow-100 text-yellow-700",
     running: "bg-blue-100 text-blue-700",
     completed: "bg-green-100 text-green-700",
     failed: "bg-red-100 text-red-700",
