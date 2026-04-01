@@ -1,11 +1,7 @@
 import { ScraperAdapter, FetchOptions } from './adapter';
 import { logger } from '@/lib/utils/logger';
+import { classifyHttpError, TimeoutError, EmptyResponseError } from './errors';
 
-/**
- * ScrapingBee adapter — https://www.scrapingbee.com
- * Free trial: 1,000 credits
- * Premium proxy + JS rendering costs 25 credits per request
- */
 export class ScrapingBeeAdapter implements ScraperAdapter {
   private apiKey: string;
   private timeoutMs: number;
@@ -41,7 +37,7 @@ export class ScrapingBeeAdapter implements ScraperAdapter {
 
       if (!response.ok) {
         const body = await response.text().catch(() => '');
-        throw new Error(`ScrapingBee returned ${response.status}: ${body.slice(0, 200)}`);
+        throw classifyHttpError('ScrapingBee', response.status, body, response.headers.get('retry-after'));
       }
 
       const html = await response.text();
@@ -49,13 +45,14 @@ export class ScrapingBeeAdapter implements ScraperAdapter {
       logger.info('ScrapingBee response', { url: url.slice(0, 80), elapsed, htmlLength: html.length });
 
       if (!html || html.length < 1000) {
-        throw new Error('ScrapingBee returned insufficient HTML');
+        throw new EmptyResponseError('ScrapingBee');
       }
 
+      if (options?.onCredit) options.onCredit(1);
       return html;
     } catch (err) {
       if (err instanceof Error && err.name === 'AbortError') {
-        throw new Error(`ScrapingBee timed out after ${this.timeoutMs}ms`);
+        throw new TimeoutError('ScrapingBee', url, this.timeoutMs);
       }
       throw err;
     } finally {

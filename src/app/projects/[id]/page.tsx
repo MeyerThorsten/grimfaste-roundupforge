@@ -57,14 +57,55 @@ export default function ProjectResultsPage() {
     loadData();
   }, [loadData]);
 
-  // Auto-poll while running or while relevance filter is active
+  // SSE progress stream with polling fallback
   useEffect(() => {
-    const isRunning = project?.status === "running" || project?.status === "pending" || project?.status === "queued" || project?.status?.startsWith("retrying");
+    const isActive = project?.status === "running" || project?.status === "pending" || project?.status === "queued" || project?.status?.startsWith("retrying");
     const isFilterActive = (project as any)?.relevanceStatus === "running";
-    if (!project || (!isRunning && !isFilterActive)) return;
-    const interval = setInterval(loadData, 3000);
-    return () => clearInterval(interval);
+    if (!project || (!isActive && !isFilterActive)) return;
+
+    // Try SSE first
+    let es: EventSource | null = null;
+    let fallbackInterval: ReturnType<typeof setInterval> | null = null;
+
+    try {
+      es = new EventSource(`/api/projects/${projectId}/progress`);
+      es.onmessage = () => {
+        loadData(); // Refresh full data on each SSE event
+      };
+      es.onerror = () => {
+        // Fall back to polling on SSE failure
+        es?.close();
+        es = null;
+        if (!fallbackInterval) {
+          fallbackInterval = setInterval(loadData, 3000);
+        }
+      };
+    } catch {
+      // SSE not supported, use polling
+      fallbackInterval = setInterval(loadData, 3000);
+    }
+
+    return () => {
+      es?.close();
+      if (fallbackInterval) clearInterval(fallbackInterval);
+    };
   }, [project?.status, (project as any)?.relevanceStatus, loadData]);
+
+  // Browser notification on project completion
+  useEffect(() => {
+    if (!project) return;
+    if (project.status === "completed" || project.status === "failed") {
+      if (typeof Notification !== "undefined" && Notification.permission === "granted") {
+        const title = project.status === "completed" ? "Project Completed" : "Project Failed";
+        const body = `${project.name}: ${project.completedKeywords}/${project.totalKeywords} keywords`;
+        new Notification(title, { body, icon: "/favicon.ico" });
+      }
+    }
+    // Request permission early
+    if (project.status === "running" && typeof Notification !== "undefined" && Notification.permission === "default") {
+      Notification.requestPermission();
+    }
+  }, [project?.status]);
 
   // Track when running starts for live timer
   useEffect(() => {
@@ -319,6 +360,9 @@ export default function ProjectResultsPage() {
             ) : totalElapsed > 0 ? (
               <>Completed in {formatDuration(totalElapsed)}</>
             ) : null}
+            {project.creditsUsed > 0 && (
+              <span className="ml-3">Credits: {project.creditsUsed.toLocaleString()}</span>
+            )}
           </p>
           {((project as any).relevanceStatus === "running" || (project as any).relevanceStatus === "done" || (project as any).relevanceStatus === "failed") && (
             <div className="flex items-center gap-2 mt-1">

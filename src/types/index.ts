@@ -51,6 +51,7 @@ export interface ProjectData {
   relevanceError: string;
   queuedAt: string | null;
   sheetsSpreadsheetId: string;
+  creditsUsed: number;
   createdAt: string;
   updatedAt: string;
 }

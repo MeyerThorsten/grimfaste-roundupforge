@@ -3,20 +3,22 @@ import { ScraperAdapter } from './adapter';
 import { normalizeText, dedupeTexts, buildMergedText } from './normalizer';
 import { extractAsin, buildAffiliateUrl } from './url-builder';
 import { getCountryForDomain } from './amazon-domains';
+import { FetchOptions } from './adapter';
 import { ScrapeProfileData, ExtractedProduct, ProductLink } from '@/types';
 import { logger } from '@/lib/utils/logger';
 
 export async function extractProduct(
   link: ProductLink,
   profile: ScrapeProfileData,
-  scraper: ScraperAdapter
+  scraper: ScraperAdapter,
+  extraFetchOpts?: Partial<FetchOptions>
 ): Promise<ExtractedProduct> {
   const debug: Record<string, unknown> = { url: link.url };
 
   let html: string;
   try {
     const country = getCountryForDomain(profile.domain);
-    html = await scraper.fetchPage(link.url, { renderJs: false, country });
+    html = await scraper.fetchPage(link.url, { renderJs: false, country, ...extraFetchOpts });
     debug.htmlLength = html.length;
   } catch (err) {
     logger.error('Failed to fetch product page', { url: link.url, error: String(err) });

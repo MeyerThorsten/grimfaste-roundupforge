@@ -1,6 +1,7 @@
 export interface FetchOptions {
   renderJs?: boolean;
   country?: string;
+  onCredit?: (credits: number) => void;
 }
 
 export interface ScraperAdapter {

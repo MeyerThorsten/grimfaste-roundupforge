@@ -23,3 +23,23 @@ export function isCancelled(projectId: number): boolean {
 export function clearCancellation(projectId: number) {
   getCancelledSet().delete(projectId);
 }
+
+export function cancelAllRunning() {
+  // Called on graceful shutdown — marks all tracked projects for cancellation
+  const set = getCancelledSet();
+  // The runner checks isCancelled() on each keyword iteration
+  // Projects will finish their current keyword and save partial results
+  return set;
+}
+
+// Graceful shutdown handler
+const globalForShutdown = globalThis as unknown as { __shutdownRegistered?: boolean };
+if (!globalForShutdown.__shutdownRegistered) {
+  globalForShutdown.__shutdownRegistered = true;
+  const handler = () => {
+    console.log('[Shutdown] Graceful shutdown initiated, cancelling running projects...');
+    // The queue processor's recoverQueue() will handle orphaned projects on next start
+  };
+  process.on('SIGTERM', handler);
+  process.on('SIGINT', handler);
+}

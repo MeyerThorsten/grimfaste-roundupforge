@@ -24,6 +24,7 @@ function toProjectData(row: {
   relevanceError: string;
   queuedAt: Date | null;
   sheetsSpreadsheetId: string;
+  creditsUsed: number;
   createdAt: Date;
   updatedAt: Date;
 }): ProjectData {
@@ -50,6 +51,7 @@ function toProjectData(row: {
     relevanceError: row.relevanceError,
     queuedAt: row.queuedAt?.toISOString() ?? null,
     sheetsSpreadsheetId: row.sheetsSpreadsheetId,
+    creditsUsed: row.creditsUsed,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
   };
@@ -218,6 +220,10 @@ export async function updateKeywordResult(
   data: { status?: string; searchUrl?: string; errorMessage?: string | null }
 ) {
   await prisma.keywordResult.update({ where: { id }, data });
+}
+
+export async function incrementCredits(id: number, credits: number) {
+  await prisma.project.update({ where: { id }, data: { creditsUsed: { increment: credits } } });
 }
 
 // ── Queue Operations ────────────────────────────────────

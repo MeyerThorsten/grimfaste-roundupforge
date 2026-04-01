@@ -46,9 +46,11 @@ model Project {
   relevanceError     String          @default("")  // last error message if failed
   queuedAt           DateTime?                     // when queued; null = not queued
   sheetsSpreadsheetId String         @default("")  // Google Sheets ID for deferred sync
+  creditsUsed        Int             @default(0)   // ScrapeOwl credits consumed
   createdAt          DateTime        @default(now())
   updatedAt          DateTime        @updatedAt
   keywords           KeywordResult[]
+  exportSnapshots    ExportSnapshot[]
 }
 
 model KeywordResult {
@@ -83,6 +85,17 @@ model Product {
   position           Int           @default(0)
   excluded           Boolean       @default(false)
   createdAt          DateTime      @default(now())
+}
+
+model ExportSnapshot {
+  id            Int      @id @default(autoincrement())
+  projectId     Int
+  project       Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  format        String   // "json" | "csv" | "roundup"
+  filename      String
+  contentHash   String
+  productsCount Int
+  createdAt     DateTime @default(now())
 }
 
 model LlmProvider {

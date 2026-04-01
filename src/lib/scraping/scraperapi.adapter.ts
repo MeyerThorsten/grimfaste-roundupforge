@@ -1,11 +1,7 @@
 import { ScraperAdapter, FetchOptions } from './adapter';
 import { logger } from '@/lib/utils/logger';
+import { classifyHttpError, TimeoutError, EmptyResponseError } from './errors';
 
-/**
- * ScraperAPI adapter — https://www.scraperapi.com
- * Free tier: 5,000 credits/month, 5 concurrent requests
- * Amazon pages cost 10 credits each with render=true
- */
 export class ScraperApiAdapter implements ScraperAdapter {
   private apiKey: string;
   private timeoutMs: number;
@@ -29,7 +25,6 @@ export class ScraperApiAdapter implements ScraperAdapter {
       country_code: options?.country || 'us',
     });
     if (renderJs) params.set('render', 'true');
-    // Premium for Amazon
     params.set('premium', 'true');
 
     const controller = new AbortController();
@@ -42,7 +37,7 @@ export class ScraperApiAdapter implements ScraperAdapter {
 
       if (!response.ok) {
         const body = await response.text().catch(() => '');
-        throw new Error(`ScraperAPI returned ${response.status}: ${body.slice(0, 200)}`);
+        throw classifyHttpError('ScraperAPI', response.status, body, response.headers.get('retry-after'));
       }
 
       const html = await response.text();
@@ -50,13 +45,14 @@ export class ScraperApiAdapter implements ScraperAdapter {
       logger.info('ScraperAPI response', { url: url.slice(0, 80), elapsed, htmlLength: html.length });
 
       if (!html || html.length < 1000) {
-        throw new Error('ScraperAPI returned insufficient HTML');
+        throw new EmptyResponseError('ScraperAPI');
       }
 
+      if (options?.onCredit) options.onCredit(1);
       return html;
     } catch (err) {
       if (err instanceof Error && err.name === 'AbortError') {
-        throw new Error(`ScraperAPI timed out after ${this.timeoutMs}ms`);
+        throw new TimeoutError('ScraperAPI', url, this.timeoutMs);
       }
       throw err;
     } finally {

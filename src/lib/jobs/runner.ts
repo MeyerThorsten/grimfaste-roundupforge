@@ -5,6 +5,7 @@ import {
   getProject,
   updateProjectStatus,
   incrementProjectProgress,
+  incrementCredits,
   updateKeywordResult,
   getPendingKeywords,
   resetFailedKeywords,
@@ -18,9 +19,20 @@ import { getScraper } from '@/lib/scraping/get-scraper';
 import { getProjectWithKeywords } from '@/lib/services/project.service';
 import { writeResults, writeStatusSheet, isConfigured } from '@/lib/sheets/google-sheets';
 import { isCancelled, clearCancellation } from '@/lib/jobs/cancel';
+import { callPreScrape, callPostScrape, callOnFailure } from '@/lib/hooks/scrape-hooks';
 import { ScrapeProfileData } from '@/types';
+import { FetchOptions } from '@/lib/scraping/adapter';
 
 const DELAY_MS = 500;
+
+function makeFetchOptions(projectId: number, extra: Partial<FetchOptions> = {}): FetchOptions {
+  return {
+    ...extra,
+    onCredit: (credits: number) => {
+      incrementCredits(projectId, credits).catch(() => {});
+    },
+  };
+}
 
 function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -213,6 +225,14 @@ async function processKeyword(
   const startTime = Date.now();
   logger.info('Processing keyword', { kwId, keyword });
 
+  // Lifecycle hook: preScrape
+  const shouldProceed = await callPreScrape({ projectId, keywordId: kwId, keyword });
+  if (!shouldProceed) {
+    await updateKeywordResult(kwId, { status: 'failed', errorMessage: 'Skipped by preScrape hook' });
+    await incrementProjectProgress(projectId, false);
+    return;
+  }
+
   try {
     await updateKeywordResult(kwId, { status: 'running' });
 
@@ -243,7 +263,7 @@ async function processKeyword(
           productLimiter(async () => {
             if (isCancelled(projectId)) return;
             try {
-              const product = await extractProduct(link, profile, scraper);
+              const product = await extractProduct(link, profile, scraper, { onCredit: makeFetchOptions(projectId).onCredit });
               await insertProduct(kwId, product);
             } catch (err) {
               logger.error('Product extraction failed', { kwId, url: link.url, error: String(err) });
@@ -266,6 +286,7 @@ async function processKeyword(
         await incrementProjectProgress(projectId, true);
       }
       logger.info('Keyword completed (direct)', { kwId, products: directProductCount, elapsed: Date.now() - startTime });
+      await callPostScrape({ projectId, keywordId: kwId, keyword, productsFound: directProductCount, elapsed: Date.now() - startTime });
       return;
     }
 
@@ -280,12 +301,13 @@ async function processKeyword(
 
     // Fetch search results (with retry on blocked pages)
     const country = getCountryForDomain(profile.domain);
-    let searchHtml = await scraper.fetchPage(searchUrl, { country });
+    const fetchOpts = makeFetchOptions(projectId, { country });
+    let searchHtml = await scraper.fetchPage(searchUrl, fetchOpts);
     let blocked = detectBlockedPage(searchHtml);
     if (blocked) {
       logger.warn('Blocked page detected, retrying', { kwId, reason: blocked });
       await new Promise((r) => setTimeout(r, 5000));
-      searchHtml = await scraper.fetchPage(searchUrl, { country });
+      searchHtml = await scraper.fetchPage(searchUrl, fetchOpts);
       blocked = detectBlockedPage(searchHtml);
     }
     if (blocked) {
@@ -336,7 +358,7 @@ async function processKeyword(
           productLimiter(async () => {
             if (isCancelled(projectId)) return;
             try {
-              const product = await extractProduct(link, profile, scraper);
+              const product = await extractProduct(link, profile, scraper, { onCredit: makeFetchOptions(projectId).onCredit });
               await insertProduct(kwId, product);
             } catch (err) {
               logger.error('Product extraction failed', { kwId, url: link.url, error: String(err) });
@@ -360,14 +382,17 @@ async function processKeyword(
       await incrementProjectProgress(projectId, true);
     }
     logger.info('Keyword completed', { kwId, products: productCount, elapsed: Date.now() - startTime });
+    await callPostScrape({ projectId, keywordId: kwId, keyword, productsFound: productCount, elapsed: Date.now() - startTime });
   } catch (err) {
     if (isCancelled(projectId)) {
       await updateKeywordResult(kwId, { status: 'pending' });
       return;
     }
     const errorMessage = err instanceof Error ? err.message : String(err);
-    logger.error('Keyword failed', { kwId, error: errorMessage });
+    const errorType = err instanceof Error ? err.constructor.name : 'Unknown';
+    logger.error('Keyword failed', { kwId, error: errorMessage, errorType });
     await updateKeywordResult(kwId, { status: 'failed', errorMessage });
     await incrementProjectProgress(projectId, false);
+    await callOnFailure({ projectId, keywordId: kwId, keyword, error: errorMessage, errorType });
   }
 }

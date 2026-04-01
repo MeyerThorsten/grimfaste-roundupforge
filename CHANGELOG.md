@@ -1,5 +1,27 @@
 # Changelog
 
+## [1.2.0] - 2026-04-01
+
+### Added
+- **Sequential Project Queue** — projects auto-queue on creation and run one at a time; next project starts automatically when current one finishes
+- **Global Max Concurrency** — configurable on Settings page (1-50), caps per-project concurrency across all jobs
+- **ScrapeOwl Credit Tracking** — tracks credits consumed per project, displayed on project detail page
+- **Typed Error Classification** — scraper errors are now typed (RateLimitError, BlockedError, TimeoutError, ParseError, AuthError) enabling smarter retry strategies
+- **Exponential Backoff with Jitter** — replaces fixed 4s retry delay with `min(2s * 2^attempt + jitter, 30s)`; respects `retry-after` headers for rate limits
+- **Browser Notifications** — desktop notification when a project completes or fails (requests permission when project starts running)
+- **Scrape Lifecycle Hooks** — extensible hook system: preScrape (can skip keywords), postScrape (with results), onFailure (with error context)
+- **Scraper Plugin Registry** — scrapers registered via plugin interface instead of hardcoded if/else; foundation for custom scraper backends
+- **Export Versioning** — each export saves a snapshot record (format, content hash, product count, timestamp) for audit trail
+- **Server-Sent Events (SSE) Progress** — real-time progress streaming via `/api/projects/{id}/progress` with polling fallback
+- **Queue Status API** — `GET /api/queue` returns running project and queued list with positions
+- **Queue Recovery** — on server restart, orphaned "running" projects are marked failed and queue auto-resumes
+
+### Changed
+- **Retry/Resume bypasses queue** — runs immediately in parallel with current queued project
+- **Project creation auto-queues** — no longer requires separate `/run` API call
+- **Scraper adapters use typed errors** — ScrapeOwl, ScraperAPI, ScrapingBee all throw classified errors
+- **Graceful shutdown** — SIGTERM/SIGINT handlers registered for clean process termination
+
 ## [1.1.0] - 2026-03-23
 
 ### Changed
