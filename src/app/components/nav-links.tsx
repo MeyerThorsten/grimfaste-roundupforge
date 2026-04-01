@@ -6,6 +6,7 @@ import type { NavItem } from "@/lib/plugins/registry";
 
 const coreLinks = [
   { label: "Home", href: "/", order: 0 },
+  { label: "Dashboard", href: "/dashboard", order: 5 },
   { label: "Profiles", href: "/profiles", order: 10 },
   { label: "Settings", href: "/settings", order: 20 },
 ];

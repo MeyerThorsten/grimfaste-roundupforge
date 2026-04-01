@@ -34,8 +34,7 @@ export default function HomePage() {
   const [availableTabs, setAvailableTabs] = useState<string[]>([]);
   const [sheetsLoading, setSheetsLoading] = useState(false);
   const [syncToSheets, setSyncToSheets] = useState(false);
-
-  // Relevance filter state
+  const [bulkQueueing, setBulkQueueing] = useState(false);
 
   useEffect(() => {
     fetch("/api/profiles")
@@ -105,6 +104,37 @@ export default function HomePage() {
       setError(err instanceof Error ? err.message : "Failed to load keywords");
     } finally {
       setSheetsLoading(false);
+    }
+  }
+
+  async function handleBulkQueue() {
+    if (!sheetsConfig?.defaultSpreadsheetId || !profileId) return;
+    setBulkQueueing(true);
+    setError("");
+    try {
+      const res = await fetch("/api/bulk-queue", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          spreadsheetId: sheetsConfig.defaultSpreadsheetId,
+          tabNames: availableTabs,
+          profileId,
+          productsPerKeyword,
+          concurrency,
+          randomProducts,
+          randomMin,
+          scrapeMode,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      // Refresh project list
+      const projRes = await fetch("/api/projects");
+      setProjects(await projRes.json());
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Bulk queue failed");
+    } finally {
+      setBulkQueueing(false);
     }
   }
 
@@ -228,14 +258,25 @@ export default function HomePage() {
             </button>
           </div>
 
-          <label className="flex items-center gap-2 text-sm text-emerald-800">
-            <input
-              type="checkbox"
-              checked={syncToSheets}
-              onChange={(e) => setSyncToSheets(e.target.checked)}
-            />
-            Auto-sync results back when batch completes
-          </label>
+          <div className="flex items-center justify-between">
+            <label className="flex items-center gap-2 text-sm text-emerald-800">
+              <input
+                type="checkbox"
+                checked={syncToSheets}
+                onChange={(e) => setSyncToSheets(e.target.checked)}
+              />
+              Auto-sync results back when batch completes
+            </label>
+            {availableTabs.length > 1 && (
+              <button
+                onClick={handleBulkQueue}
+                disabled={bulkQueueing || !profileId}
+                className="bg-emerald-700 text-white px-3 py-1 rounded-md text-xs font-medium hover:bg-emerald-800 disabled:opacity-50"
+              >
+                {bulkQueueing ? "Queuing..." : `Queue All ${availableTabs.length} Tabs`}
+              </button>
+            )}
+          </div>
         </div>
       )}
 

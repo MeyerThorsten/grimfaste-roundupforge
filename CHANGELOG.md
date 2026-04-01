@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.3.0] - 2026-04-01
+
+### Added
+- **Bulk Queue from Google Sheets** — "Queue All Tabs" button loads keywords from every sheet tab and creates/queues a project for each one automatically
+- **Dashboard / Analytics** — new `/dashboard` page with overview stats (projects, keywords, products, credits, success rate), daily activity table, and recent projects with performance metrics
+- **Dashboard API** — `GET /api/dashboard` returns aggregated stats, status distribution, and 30-day daily breakdown
+- **Bulk Queue API** — `POST /api/bulk-queue` accepts spreadsheet ID and creates projects from all tabs
+
 ## [1.2.0] - 2026-04-01
 
 ### Added
